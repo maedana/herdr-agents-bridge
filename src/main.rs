@@ -2,6 +2,7 @@ mod handler;
 mod herdr;
 mod html;
 mod inject;
+mod pidfile;
 mod state;
 
 use std::net::{SocketAddr, UdpSocket};
@@ -59,8 +60,24 @@ fn print_qr(url: &str) {
     println!("{string}");
 }
 
+fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    let cmd = args.get(1).map(|s| s.as_str()).unwrap_or("serve");
+
+    match cmd {
+        "serve" => cmd_serve(),
+        "qr" => cmd_qr(),
+        "stop" => cmd_stop(),
+        other => {
+            eprintln!("Unknown command: {other}");
+            eprintln!("Usage: herdr-agents-bridge [serve|qr|stop]");
+            std::process::exit(1);
+        }
+    }
+}
+
 #[tokio::main]
-async fn main() {
+async fn cmd_serve() {
     let local_ip = get_local_ip();
     let state = Arc::new(AppState::new(Box::new(XdotoolInjector)));
     let ui_url = format!("http://{local_ip}:{PORT}/?t={}", state.session_token);
@@ -81,27 +98,17 @@ async fn main() {
                         .join(", ")
                 )
             };
-            eprintln!("\n[ERROR] ポート {PORT} は既に使用中です{pid_str}");
-            eprintln!("  古いプロセスが残っている可能性があります。");
-            eprintln!("  手動で停止してから再起動してください。");
+            eprintln!("[ERROR] ポート {PORT} は既に使用中です{pid_str}");
             std::process::exit(1);
         }
     };
 
-    println!("{}", "=".repeat(50));
-    println!("  Herdr Agents Bridge 起動");
-    println!("{}", "=".repeat(50));
-    println!("  ローカルIP : {local_ip}");
-    println!("  ポート     : {PORT}");
-    println!("  トークン   : {}", state.session_token);
-    println!();
-    println!("  QRをスキャンしてiPhoneで開く:");
-    println!("    {ui_url}");
-    println!();
-    print_qr(&ui_url);
-    println!();
-    println!("  停止: Ctrl+C");
-    println!("{}", "=".repeat(50));
+    let pid = std::process::id();
+    if let Err(e) = pidfile::write(pid, &ui_url) {
+        eprintln!("[WARN] PID/URLファイル書き出し失敗: {e}");
+    }
+
+    eprintln!("[herdr-agents-bridge] started on port {PORT} (PID {pid})");
 
     let app = handler::build_router(state)
         .into_make_service_with_connect_info::<SocketAddr>();
@@ -111,7 +118,52 @@ async fn main() {
         .await
         .unwrap();
 
-    println!("\nサーバーを停止しました。");
+    pidfile::cleanup();
+    eprintln!("[herdr-agents-bridge] stopped");
+}
+
+fn cmd_qr() {
+    let Some(url) = pidfile::read_url() else {
+        eprintln!("サーバーが起動していません。先に start してください。");
+        std::process::exit(1);
+    };
+
+    println!();
+    println!("  スマホでスキャンしてください:");
+    println!("  {url}");
+    println!();
+    print_qr(&url);
+    println!();
+    println!("  何かキーを押すと閉じます...");
+
+    use crossterm::event;
+    use crossterm::terminal;
+    terminal::enable_raw_mode().ok();
+    let _ = event::read();
+    terminal::disable_raw_mode().ok();
+}
+
+fn cmd_stop() {
+    let Some(pid) = pidfile::read_pid() else {
+        eprintln!("PIDファイルが見つかりません。サーバーは起動していないようです。");
+        std::process::exit(1);
+    };
+
+    let status = Command::new("kill")
+        .arg(pid.to_string())
+        .status();
+
+    match status {
+        Ok(s) if s.success() => {
+            pidfile::cleanup();
+            eprintln!("[herdr-agents-bridge] stopped (PID {pid})");
+        }
+        _ => {
+            eprintln!("[ERROR] PID {pid} の停止に失敗しました");
+            pidfile::cleanup();
+            std::process::exit(1);
+        }
+    }
 }
 
 async fn shutdown_signal() {

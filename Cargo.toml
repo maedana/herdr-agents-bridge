@@ -12,7 +12,11 @@ qrcode = "0.14"
 rand = "0.9"
 ansi-to-html = "0.2"
 
+[dependencies.crossterm]
+version = "0.28"
+
 [dev-dependencies]
 http-body-util = "0.1"
 hyper = "1"
 tower = { version = "0.5", features = ["util"] }
+tempfile = "3"

@@ -1,0 +1,29 @@
+id = "maedana.agents-bridge"
+name = "Agents Bridge"
+version = "0.1.0"
+min_herdr_version = "0.7.0"
+description = "Mobile bridge for Herdr agents (web server + QR code)"
+platforms = ["linux", "macos"]
+
+[[build]]
+command = ["cargo", "build", "--release"]
+
+[[actions]]
+id = "start"
+title = "Start Agents Bridge Server"
+contexts = ["global"]
+command = ["sh", "-c", "${HERDR_PLUGIN_ROOT}/target/release/herdr-agents-bridge serve &"]
+
+[[panes]]
+id = "qr"
+title = "Agents Bridge QR"
+placement = "popup"
+width = "50%"
+height = "60%"
+command = ["sh", "-c", "${HERDR_PLUGIN_ROOT}/target/release/herdr-agents-bridge qr"]
+
+[[actions]]
+id = "stop"
+title = "Stop Agents Bridge Server"
+contexts = ["global"]
+command = ["sh", "-c", "${HERDR_PLUGIN_ROOT}/target/release/herdr-agents-bridge stop"]
