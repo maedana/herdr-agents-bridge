@@ -339,7 +339,7 @@ async fn ws_herdr_loop(mut socket: WebSocket) {
                     _ => {}
                 }
             }
-            _ = tokio::time::sleep(std::time::Duration::from_secs(2)) => {}
+            _ = tokio::time::sleep(std::time::Duration::from_millis(200)) => {}
         }
     }
 }
