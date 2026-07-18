@@ -44,7 +44,7 @@ fn find_port_listeners(port: u16) -> Vec<u32> {
 }
 
 fn print_qr(url: &str) {
-    use qrcode::QrCode;
+    use qrcode::{QrCode, Color};
     let code = match QrCode::new(url) {
         Ok(c) => c,
         Err(e) => {
@@ -52,12 +52,24 @@ fn print_qr(url: &str) {
             return;
         }
     };
-    let string = code
-        .render::<char>()
-        .quiet_zone(false)
-        .module_dimensions(2, 1)
-        .build();
-    println!("{string}");
+    let width = code.width();
+    let colors: Vec<bool> = code.into_colors().iter().map(|c| *c == Color::Dark).collect();
+    let rows: Vec<&[bool]> = colors.chunks(width).collect();
+
+    for pair in rows.chunks(2) {
+        for col in 0..width {
+            let top = pair[0][col];
+            let bot = pair.get(1).map_or(false, |r| r[col]);
+            let ch = match (top, bot) {
+                (true, true) => "\u{2588}",
+                (true, false) => "\u{2580}",
+                (false, true) => "\u{2584}",
+                (false, false) => " ",
+            };
+            print!("{ch}{ch}");
+        }
+        println!();
+    }
 }
 
 fn main() {
