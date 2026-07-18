@@ -26,7 +26,7 @@ command = ["sh", "-c", "${HERDR_PLUGIN_ROOT}/target/release/herdr-agents-bridge 
 id = "tunnel"
 title = "Start Cloudflare Tunnel"
 contexts = ["global"]
-command = ["sh", "-c", "${HERDR_PLUGIN_ROOT}/target/release/herdr-agents-bridge tunnel &"]
+command = ["sh", "-c", "${HERDR_PLUGIN_ROOT}/target/release/herdr-agents-bridge tunnel"]
 
 [[actions]]
 id = "stop"
