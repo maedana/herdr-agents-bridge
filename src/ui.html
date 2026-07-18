@@ -133,8 +133,9 @@ function renderTabs(agents) {
 
 function renderOutput(html) {
   const el = document.getElementById('agent-output');
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
   el.innerHTML = '<pre>' + html + '</pre>';
-  el.scrollTop = el.scrollHeight;
+  if (atBottom) el.scrollTop = el.scrollHeight;
 }
 
 async function focusAgent(paneId) {
