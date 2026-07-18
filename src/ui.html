@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VoiceBridge</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎙</text></svg>">
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, sans-serif; background: #f5f5f7;
+         display: flex; flex-direction: column; align-items: center;
+         min-height: 100vh; margin: 0; padding: 16px; }
+  h1 { font-size: 1.4rem; color: #1d1d1f; margin: 16px 0; }
+  textarea { width: 100%; max-width: 480px; height: 140px; font-size: 1.1rem;
+             padding: 12px; border: 1px solid #d2d2d7; border-radius: 12px; resize: none; }
+  #sendBtn { margin-top: 10px; width: 100%; max-width: 480px; padding: 16px;
+             font-size: 1.1rem; font-weight: 600; color: #fff; background: #007aff;
+             border: none; border-radius: 12px; cursor: pointer; }
+  #sendBtn:active { background: #0051a8; }
+  .key-row { display: flex; gap: 8px; margin-top: 10px; width: 100%; max-width: 480px; }
+  .key-btn { flex: 1; padding: 12px; font-size: 0.95rem; font-weight: 600;
+             color: #333; background: #e5e5ea; border: none; border-radius: 10px; cursor: pointer; }
+  .key-btn:active { background: #c7c7cc; }
+  #status { margin-top: 10px; font-size: 0.9rem; color: #6e6e73; min-height: 1.2em; width: 100%; max-width: 480px; }
+  .toggle-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; width: 100%; max-width: 480px; }
+  .toggle-row label { font-size: 0.95rem; color: #3a3a3c; }
+  input[type=checkbox] { width: 20px; height: 20px; cursor: pointer; }
+  #history { margin-top: 16px; width: 100%; max-width: 480px; }
+  #history h2 { font-size: 0.85rem; color: #8e8e93; margin: 0 0 8px 4px; font-weight: 500; }
+  .hist-item { background: #fff; border: 1px solid #e5e5ea; border-radius: 10px;
+               padding: 10px 12px; margin-bottom: 8px; font-size: 1rem;
+               color: #1d1d1f; cursor: pointer; }
+  .hist-item:active { background: #f0f0f5; }
+  .hist-meta { font-size: 0.75rem; color: #8e8e93; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+<h1>🎙 VoiceBridge</h1>
+<textarea id="txt" placeholder="ここをタップ → キーボードのマイクボタンで話す"></textarea>
+<button id="sendBtn" onclick="send()">PCに送信</button>
+<div class="key-row">
+  <button class="key-btn" onclick="sendKey('Escape')">Esc</button>
+</div>
+<div class="toggle-row">
+  <input type="checkbox" id="enterChk">
+  <label for="enterChk">送信後にEnterを押す</label>
+</div>
+<div id="status"></div>
+<div id="history"></div>
+<script>
+const TOKEN = '__SESSION_TOKEN__';
+history.replaceState(null, '', '/');
+const HISTORY_MAX = 3;
+let historyList = [];
+
+async function send() {
+  const txt = document.getElementById('txt');
+  const text = txt.value.trim();
+  if (!text) { setStatus('テキストを入力してください'); return; }
+  const enter = document.getElementById('enterChk').checked;
+  setStatus('送信中...');
+  try {
+    const res = await fetch('/input', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-VoiceBridge-Token': TOKEN},
+      body: JSON.stringify({text, enter})
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      setStatus('✓ 送信しました（' + data.length + '文字）');
+      addHistory(text);
+      txt.value = '';
+    } else {
+      setStatus('エラー: ' + JSON.stringify(data));
+    }
+  } catch(e) {
+    setStatus('接続エラー: ' + e.message);
+  }
+}
+
+function addHistory(text) {
+  const now = new Date();
+  const time = now.getHours() + ':' + String(now.getMinutes()).padStart(2,'0');
+  historyList.unshift({text, time});
+  if (historyList.length > HISTORY_MAX) historyList.pop();
+  renderHistory();
+}
+
+function renderHistory() {
+  const el = document.getElementById('history');
+  if (historyList.length === 0) { el.innerHTML = ''; return; }
+  el.innerHTML = '<h2>履歴</h2>' + historyList.map((h, i) =>
+    '<div class="hist-item" onclick="reuse(' + i + ')">' +
+    '<div class="hist-meta">' + h.time + '</div>' +
+    '<div>' + escHtml(h.text) + '</div></div>'
+  ).join('');
+}
+
+function reuse(i) {
+  document.getElementById('txt').value = historyList[i].text;
+  setStatus('履歴から読み込みました');
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function sendKey(key) {
+  setStatus(key + ' 送信中...');
+  try {
+    const res = await fetch('/key', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-VoiceBridge-Token': TOKEN},
+      body: JSON.stringify({key})
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      setStatus('✓ ' + key + ' を送信しました');
+    } else {
+      setStatus('エラー: ' + JSON.stringify(data));
+    }
+  } catch(e) {
+    setStatus('接続エラー: ' + e.message);
+  }
+}
+
+function setStatus(msg) { document.getElementById('status').textContent = msg; }
+</script>
+</body>
+</html>
