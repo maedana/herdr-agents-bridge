@@ -108,7 +108,7 @@ mod tests {
     #[test]
     fn test_clipboard_roundtrip() {
         let original = clipboard_get().unwrap_or_default();
-        let test_text = "voice-bridge-test-日本語";
+        let test_text = "hab-test-日本語";
         clipboard_set(test_text).unwrap();
         let got = clipboard_get().unwrap();
         assert_eq!(got, test_text);

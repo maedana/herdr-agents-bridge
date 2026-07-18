@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>VoiceBridge</title>
+<title>Herdr Agents Bridge</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎙</text></svg>">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -75,7 +75,7 @@ async function send() {
   try {
     const res = await fetch('/input', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json', 'X-VoiceBridge-Token': TOKEN},
+      headers: {'Content-Type': 'application/json', 'X-HAB-Token': TOKEN},
       body: JSON.stringify({text, enter})
     });
     const data = await res.json();
@@ -100,7 +100,7 @@ async function sendKey(key) {
   try {
     const res = await fetch('/key', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json', 'X-VoiceBridge-Token': TOKEN},
+      headers: {'Content-Type': 'application/json', 'X-HAB-Token': TOKEN},
       body: JSON.stringify({key})
     });
     const data = await res.json();
@@ -137,7 +137,7 @@ async function focusAgent(paneId) {
   try {
     const res = await fetch('/herdr/focus', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json', 'X-VoiceBridge-Token': TOKEN},
+      headers: {'Content-Type': 'application/json', 'X-HAB-Token': TOKEN},
       body: JSON.stringify({pane_id: paneId})
     });
     const data = await res.json();

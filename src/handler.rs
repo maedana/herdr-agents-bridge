@@ -108,7 +108,7 @@ pub async fn post_input(
     body: axum::body::Bytes,
 ) -> impl IntoResponse {
     let token = headers
-        .get("X-VoiceBridge-Token")
+        .get("X-HAB-Token")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
 
@@ -166,7 +166,7 @@ pub async fn post_key(
     body: axum::body::Bytes,
 ) -> impl IntoResponse {
     let token = headers
-        .get("X-VoiceBridge-Token")
+        .get("X-HAB-Token")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
 
@@ -225,7 +225,7 @@ pub async fn post_herdr_focus(
     body: axum::body::Bytes,
 ) -> impl IntoResponse {
     let token = headers
-        .get("X-VoiceBridge-Token")
+        .get("X-HAB-Token")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
 
@@ -410,7 +410,7 @@ mod tests {
             .method("POST")
             .uri(uri)
             .header("Content-Type", "application/json")
-            .header("X-VoiceBridge-Token", token)
+            .header("X-HAB-Token", token)
             .extension(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 0))))
             .body(Body::from(body.to_string()))
             .unwrap()
@@ -421,7 +421,7 @@ mod tests {
             .method("POST")
             .uri(uri)
             .header("Content-Type", "application/json")
-            .header("X-VoiceBridge-Token", token)
+            .header("X-HAB-Token", token)
             .extension(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 0))))
             .body(Body::from(body.to_vec()))
             .unwrap()
@@ -438,7 +438,7 @@ mod tests {
             .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let body = response_text(resp).await;
-        assert!(body.contains("VoiceBridge"));
+        assert!(body.contains("Herdr Agents Bridge"));
     }
 
     #[tokio::test]
@@ -522,7 +522,7 @@ mod tests {
             .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
         let body = response_text(resp).await;
-        assert!(body.contains("VoiceBridge"));
+        assert!(body.contains("Herdr Agents Bridge"));
     }
 
     #[tokio::test]

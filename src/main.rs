@@ -82,14 +82,14 @@ async fn main() {
                 )
             };
             eprintln!("\n[ERROR] ポート {PORT} は既に使用中です{pid_str}");
-            eprintln!("  古いVoiceBridgeが残っている可能性があります。");
+            eprintln!("  古いプロセスが残っている可能性があります。");
             eprintln!("  手動で停止してから再起動してください。");
             std::process::exit(1);
         }
     };
 
     println!("{}", "=".repeat(50));
-    println!("  VoiceBridge サーバー起動");
+    println!("  Herdr Agents Bridge 起動");
     println!("{}", "=".repeat(50));
     println!("  ローカルIP : {local_ip}");
     println!("  ポート     : {PORT}");

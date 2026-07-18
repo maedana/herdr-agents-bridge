@@ -16,9 +16,9 @@ mod tests {
     }
 
     #[test]
-    fn test_render_contains_voicebridge() {
+    fn test_render_contains_title() {
         let html = render("token");
-        assert!(html.contains("VoiceBridge"));
+        assert!(html.contains("Herdr Agents Bridge"));
     }
 
     #[test]

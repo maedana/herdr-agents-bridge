@@ -143,7 +143,7 @@ mod tests {
 
     #[test]
     fn test_extract_repo_name_simple() {
-        assert_eq!(extract_repo_name("/tmp/voice-bridge-for-linux"), "voice-bridge-for-linux");
+        assert_eq!(extract_repo_name("/tmp/herdr-agents-bridge"), "herdr-agents-bridge");
     }
 
     #[test]
