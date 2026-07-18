@@ -201,33 +201,50 @@ fn cmd_tunnel() {
         }
     }
 
-    let url = format!("http://localhost:{PORT}");
+    let local_url = format!("http://localhost:{PORT}");
     eprintln!("[herdr-agents-bridge] starting tunnel...");
 
-    let mut child = Command::new("cloudflared")
-        .args(["tunnel", "--url", &url])
+    let log_path = std::env::var("XDG_RUNTIME_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::path::PathBuf::from("/tmp"))
+        .join("herdr-agents-bridge")
+        .join("tunnel.log");
+
+    let log_file = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&log_path)
+        .expect("failed to open tunnel log");
+
+    let child = Command::new("cloudflared")
+        .args(["tunnel", "--url", &local_url])
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::piped())
+        .stderr(log_file)
         .spawn()
         .expect("failed to start cloudflared");
 
     let tunnel_pid = child.id();
-    let stderr = child.stderr.take().unwrap();
-    let reader = std::io::BufReader::new(stderr);
 
-    use std::io::BufRead;
     let mut tunnel_url = None;
-    for line in reader.lines() {
-        let Ok(line) = line else { break };
-        if let Some(pos) = line.find("https://") {
-            let rest = &line[pos..];
-            let end = rest.find(|c: char| c.is_whitespace() || c == '|').unwrap_or(rest.len());
-            let url = rest[..end].trim_end_matches('|').trim().to_string();
-            if url.contains("trycloudflare.com") {
-                tunnel_url = Some(url);
-                break;
+    for _ in 0..100 {
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        if let Ok(log) = std::fs::read_to_string(&log_path) {
+            for line in log.lines() {
+                if let Some(pos) = line.find("https://") {
+                    let rest = &line[pos..];
+                    let end = rest.find(|c: char| c.is_whitespace() || c == '|').unwrap_or(rest.len());
+                    let url = rest[..end].trim_end_matches('|').trim().to_string();
+                    if url.contains("trycloudflare.com") {
+                        tunnel_url = Some(url);
+                        break;
+                    }
+                }
             }
+        }
+        if tunnel_url.is_some() {
+            break;
         }
     }
 
