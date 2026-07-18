@@ -65,6 +65,10 @@ pub fn read_agent(pane_id: &str) -> Result<String, String> {
             "agent",
             "read",
             pane_id,
+            "--source",
+            "recent",
+            "--lines",
+            "10000",
             "--format",
             "ansi",
         ])
