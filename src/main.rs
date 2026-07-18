@@ -67,10 +67,11 @@ fn main() {
     match cmd {
         "serve" => cmd_serve(),
         "qr" => cmd_qr(),
+        "tunnel" => cmd_tunnel(),
         "stop" => cmd_stop(),
         other => {
             eprintln!("Unknown command: {other}");
-            eprintln!("Usage: herdr-agents-bridge [serve|qr|stop]");
+            eprintln!("Usage: herdr-agents-bridge [serve|qr|tunnel|stop]");
             std::process::exit(1);
         }
     }
@@ -142,13 +143,21 @@ fn cmd_qr() {
         }
     }
 
-    let Some(url) = pidfile::read_url() else {
+    let local_url = pidfile::read_url();
+    let tunnel_url = pidfile::read_tunnel_url();
+
+    let url = tunnel_url.as_deref().or(local_url.as_deref());
+    let Some(url) = url else {
         eprintln!("Failed to start server.");
         std::process::exit(1);
     };
 
     println!();
-    println!("  Scan with your phone:");
+    if tunnel_url.is_some() {
+        println!("  Tunnel (remote):");
+    } else {
+        println!("  Local network only:");
+    }
     println!("  {url}");
     println!();
     print_qr(&url);
@@ -162,26 +171,99 @@ fn cmd_qr() {
     terminal::disable_raw_mode().ok();
 }
 
-fn cmd_stop() {
-    let Some(pid) = pidfile::read_pid() else {
-        eprintln!("PID file not found. Server does not appear to be running.");
+fn cmd_tunnel() {
+    if !pidfile::is_running() {
+        eprintln!("[herdr-agents-bridge] starting server...");
+        let exe = std::env::current_exe().expect("failed to get executable path");
+        Command::new(&exe)
+            .arg("serve")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("failed to start server");
+
+        for _ in 0..50 {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            if pidfile::read_url().is_some() {
+                break;
+            }
+        }
+    }
+
+    let url = format!("http://localhost:{PORT}");
+    eprintln!("[herdr-agents-bridge] starting tunnel...");
+
+    let mut child = Command::new("cloudflared")
+        .args(["tunnel", "--url", &url])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("failed to start cloudflared");
+
+    let tunnel_pid = child.id();
+    let stderr = child.stderr.take().unwrap();
+    let reader = std::io::BufReader::new(stderr);
+
+    use std::io::BufRead;
+    let mut tunnel_url = None;
+    for line in reader.lines() {
+        let Ok(line) = line else { break };
+        if let Some(pos) = line.find("https://") {
+            let rest = &line[pos..];
+            let end = rest.find(|c: char| c.is_whitespace() || c == '|').unwrap_or(rest.len());
+            let url = rest[..end].trim_end_matches('|').trim().to_string();
+            if url.contains("trycloudflare.com") {
+                tunnel_url = Some(url);
+                break;
+            }
+        }
+    }
+
+    let Some(tunnel_url) = tunnel_url else {
+        eprintln!("[ERROR] failed to get tunnel URL");
+        let _ = Command::new("kill").arg(tunnel_pid.to_string()).status();
         std::process::exit(1);
     };
 
-    let status = Command::new("kill")
-        .arg(pid.to_string())
-        .status();
+    if let Err(e) = pidfile::write_tunnel(tunnel_pid, &tunnel_url) {
+        eprintln!("[WARN] failed to write tunnel files: {e}");
+    }
 
-    match status {
-        Ok(s) if s.success() => {
-            pidfile::cleanup();
-            eprintln!("[herdr-agents-bridge] stopped (PID {pid})");
+    eprintln!("[herdr-agents-bridge] tunnel ready: {tunnel_url}");
+}
+
+fn kill_pid(pid: u32) -> bool {
+    Command::new("kill")
+        .arg(pid.to_string())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+fn cmd_stop() {
+    let mut stopped_any = false;
+
+    if let Some(pid) = pidfile::read_tunnel_pid() {
+        if kill_pid(pid) {
+            eprintln!("[herdr-agents-bridge] tunnel stopped (PID {pid})");
         }
-        _ => {
-            eprintln!("[ERROR] failed to stop PID {pid}");
-            pidfile::cleanup();
-            std::process::exit(1);
+        pidfile::cleanup_tunnel();
+        stopped_any = true;
+    }
+
+    if let Some(pid) = pidfile::read_pid() {
+        if kill_pid(pid) {
+            eprintln!("[herdr-agents-bridge] server stopped (PID {pid})");
         }
+        pidfile::cleanup();
+        stopped_any = true;
+    }
+
+    if !stopped_any {
+        eprintln!("Nothing to stop.");
+        std::process::exit(1);
     }
 }
 

@@ -23,6 +23,12 @@ height = "60%"
 command = ["sh", "-c", "${HERDR_PLUGIN_ROOT}/target/release/herdr-agents-bridge qr"]
 
 [[actions]]
+id = "tunnel"
+title = "Start Cloudflare Tunnel"
+contexts = ["global"]
+command = ["sh", "-c", "${HERDR_PLUGIN_ROOT}/target/release/herdr-agents-bridge tunnel &"]
+
+[[actions]]
 id = "stop"
 title = "Stop Agents Bridge Server"
 contexts = ["global"]
