@@ -69,15 +69,22 @@ const TOKEN = '__SESSION_TOKEN__';
 sessionStorage.setItem('hab_token', TOKEN);
 history.replaceState(null, '', '/');
 
+let focusedPaneId = '';
+
+function updateFocusedPane(agents) {
+  const f = agents.find(a => a.focused);
+  if (f) focusedPaneId = f.pane_id;
+}
+
 async function send() {
   const txt = document.getElementById('txt');
   const text = txt.value.trim();
-  if (!text) return;
+  if (!text || !focusedPaneId) return;
   try {
     const res = await fetch('/input', {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'X-HAB-Token': TOKEN},
-      body: JSON.stringify({text})
+      body: JSON.stringify({text, pane_id: focusedPaneId})
     });
     const data = await res.json();
     if (data.status === 'ok') {
@@ -92,11 +99,12 @@ function escHtml(s) {
 }
 
 async function sendKey(key) {
+  if (!focusedPaneId) return;
   try {
     await fetch('/key', {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'X-HAB-Token': TOKEN},
-      body: JSON.stringify({key})
+      body: JSON.stringify({key, pane_id: focusedPaneId})
     });
   } catch(e) {}
 }
@@ -138,8 +146,9 @@ async function focusAgent(paneId) {
     });
     const data = await res.json();
     if (data.status === 'ok') {
+      focusedPaneId = paneId;
       const r1 = await fetch('/herdr/agents');
-      if (r1.ok) renderTabs(await r1.json());
+      if (r1.ok) { const agents = await r1.json(); updateFocusedPane(agents); renderTabs(agents); }
       const r2 = await fetch('/herdr/read?pane_id=' + encodeURIComponent(paneId));
       if (r2.ok) { const d = await r2.json(); renderOutput(d.html); }
     }
@@ -151,7 +160,7 @@ function connectWs() {
   const ws = new WebSocket(proto + '//' + location.host + '/herdr/ws');
   ws.onmessage = function(e) {
     const msg = JSON.parse(e.data);
-    if (msg.type === 'agents') renderTabs(msg.agents);
+    if (msg.type === 'agents') { updateFocusedPane(msg.agents); renderTabs(msg.agents); }
     if (msg.type === 'output') renderOutput(msg.html);
   };
   ws.onclose = function() { setTimeout(connectWs, 3000); };

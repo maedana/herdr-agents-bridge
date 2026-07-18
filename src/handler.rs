@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::herdr;
 use crate::html;
 use crate::inject::is_allowed_key;
-use crate::state::{AppState, INJECT_DELAY_MILLIS, MAX_TEXT_LENGTH};
+use crate::state::{AppState, MAX_TEXT_LENGTH};
 
 #[derive(Deserialize)]
 pub struct TokenQuery {
@@ -20,6 +20,7 @@ pub struct TokenQuery {
 #[derive(Deserialize)]
 pub struct InputBody {
     text: String,
+    pane_id: String,
 }
 
 #[derive(Serialize)]
@@ -36,6 +37,7 @@ struct ErrorResponse {
 #[derive(Deserialize)]
 pub struct KeyBody {
     key: String,
+    pane_id: String,
 }
 
 #[derive(Deserialize)]
@@ -136,9 +138,7 @@ pub async fn post_input(
         .into_response();
     }
 
-    tokio::time::sleep(std::time::Duration::from_millis(INJECT_DELAY_MILLIS)).await;
-
-    if let Err(e) = state.injector.inject(&input.text) {
+    if let Err(e) = state.injector.inject(&input.pane_id, &input.text) {
         return error_json(StatusCode::INTERNAL_SERVER_ERROR, &format!("inject failed: {e}"))
             .into_response();
     }
@@ -183,9 +183,7 @@ pub async fn post_key(
             .into_response();
     }
 
-    tokio::time::sleep(std::time::Duration::from_millis(INJECT_DELAY_MILLIS)).await;
-
-    if let Err(e) = state.injector.send_key(&input.key) {
+    if let Err(e) = state.injector.send_key(&input.pane_id, &input.key) {
         return error_json(StatusCode::INTERNAL_SERVER_ERROR, &format!("key send failed: {e}"))
             .into_response();
     }
@@ -348,20 +346,20 @@ mod tests {
 
     struct MockInjector;
     impl TextInjector for MockInjector {
-        fn inject(&self, _text: &str) -> Result<(), String> {
+        fn inject(&self, _pane_id: &str, _text: &str) -> Result<(), String> {
             Ok(())
         }
-        fn send_key(&self, _key: &str) -> Result<(), String> {
+        fn send_key(&self, _pane_id: &str, _key: &str) -> Result<(), String> {
             Ok(())
         }
     }
 
     struct FailInjector;
     impl TextInjector for FailInjector {
-        fn inject(&self, _text: &str) -> Result<(), String> {
+        fn inject(&self, _pane_id: &str, _text: &str) -> Result<(), String> {
             Err("mock error".to_string())
         }
-        fn send_key(&self, _key: &str) -> Result<(), String> {
+        fn send_key(&self, _pane_id: &str, _key: &str) -> Result<(), String> {
             Err("mock error".to_string())
         }
     }
@@ -635,7 +633,7 @@ mod tests {
     #[tokio::test]
     async fn test_post_input_normal_returns_200() {
         let state = make_state();
-        let resp = register_and_post(&state, r#"{"text":"hello"}"#).await;
+        let resp = register_and_post(&state, r#"{"text":"hello","pane_id":"w1:p1"}"#).await;
         assert_eq!(resp.status(), StatusCode::OK);
         let body = response_body(resp).await;
         assert_eq!(body["status"], "ok");
@@ -645,7 +643,7 @@ mod tests {
     #[tokio::test]
     async fn test_post_input_multibyte_returns_char_count() {
         let state = make_state();
-        let resp = register_and_post(&state, r#"{"text":"voice test"}"#).await;
+        let resp = register_and_post(&state, r#"{"text":"voice test","pane_id":"w1:p1"}"#).await;
         assert_eq!(resp.status(), StatusCode::OK);
         let body = response_body(resp).await;
         assert_eq!(body["length"], 10);
@@ -660,7 +658,7 @@ mod tests {
             .unwrap();
 
         let resp = app(state.clone())
-            .oneshot(post_request("/input", "badtoken", r#"{"text":"hi"}"#))
+            .oneshot(post_request("/input", "badtoken", r#"{"text":"hi","pane_id":"w1:p1"}"#))
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::FORBIDDEN);
@@ -670,7 +668,7 @@ mod tests {
     async fn test_post_input_unregistered_ip_returns_403() {
         let state = make_state();
         let resp = app(state.clone())
-            .oneshot(post_request("/input", &state.session_token, r#"{"text":"hi"}"#))
+            .oneshot(post_request("/input", &state.session_token, r#"{"text":"hi","pane_id":"w1:p1"}"#))
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::FORBIDDEN);
@@ -679,14 +677,14 @@ mod tests {
     #[tokio::test]
     async fn test_post_input_empty_text_returns_400() {
         let state = make_state();
-        let resp = register_and_post(&state, r#"{"text":""}"#).await;
+        let resp = register_and_post(&state, r#"{"text":"","pane_id":"w1:p1"}"#).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
     async fn test_post_input_missing_text_returns_400() {
         let state = make_state();
-        let resp = register_and_post(&state, r#"{"other":"value"}"#).await;
+        let resp = register_and_post(&state, r#"{"other":"value","pane_id":"w1:p1"}"#).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
@@ -694,7 +692,7 @@ mod tests {
     async fn test_post_input_text_too_long_returns_400() {
         let state = make_state();
         let long_text = "a".repeat(MAX_TEXT_LENGTH + 1);
-        let body = format!(r#"{{"text":"{long_text}"}}"#);
+        let body = format!(r#"{{"text":"{long_text}","pane_id":"w1:p1"}}"#);
         let resp = register_and_post(&state, &body).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
         let json = response_body(resp).await;
@@ -705,7 +703,7 @@ mod tests {
     async fn test_post_input_max_length_ok() {
         let state = make_state();
         let text = "x".repeat(MAX_TEXT_LENGTH);
-        let body = format!(r#"{{"text":"{text}"}}"#);
+        let body = format!(r#"{{"text":"{text}","pane_id":"w1:p1"}}"#);
         let resp = register_and_post(&state, &body).await;
         assert_eq!(resp.status(), StatusCode::OK);
     }
@@ -714,12 +712,12 @@ mod tests {
     async fn test_post_input_rate_limit() {
         let state = make_state();
         // First request
-        let resp = register_and_post(&state, r#"{"text":"first"}"#).await;
+        let resp = register_and_post(&state, r#"{"text":"first","pane_id":"w1:p1"}"#).await;
         assert_eq!(resp.status(), StatusCode::OK);
 
         // Second immediately
         let resp = app(state.clone())
-            .oneshot(post_request("/input", &state.session_token, r#"{"text":"second"}"#))
+            .oneshot(post_request("/input", &state.session_token, r#"{"text":"second","pane_id":"w1:p1"}"#))
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
@@ -739,7 +737,7 @@ mod tests {
         }
 
         let resp = app(state.clone())
-            .oneshot(post_request("/input", &state.session_token, r#"{"text":"ok"}"#))
+            .oneshot(post_request("/input", &state.session_token, r#"{"text":"ok","pane_id":"w1:p1"}"#))
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
@@ -776,7 +774,7 @@ mod tests {
             .unwrap();
 
         let resp = app(state.clone())
-            .oneshot(post_request("/input", &state.session_token, r#"{"text":"hi"}"#))
+            .oneshot(post_request("/input", &state.session_token, r#"{"text":"hi","pane_id":"w1:p1"}"#))
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
@@ -785,7 +783,7 @@ mod tests {
     #[tokio::test]
     async fn test_post_input_single_char() {
         let state = make_state();
-        let resp = register_and_post(&state, r#"{"text":"a"}"#).await;
+        let resp = register_and_post(&state, r#"{"text":"a","pane_id":"w1:p1"}"#).await;
         assert_eq!(resp.status(), StatusCode::OK);
         let body = response_body(resp).await;
         assert_eq!(body["length"], 1);
@@ -795,7 +793,7 @@ mod tests {
     async fn test_post_wrong_path_returns_404() {
         let state = make_state();
         let resp = app(state.clone())
-            .oneshot(post_request("/other", "", r#"{"text":"hi"}"#))
+            .oneshot(post_request("/other", "", r#"{"text":"hi","pane_id":"w1:p1"}"#))
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
@@ -818,7 +816,7 @@ mod tests {
     #[tokio::test]
     async fn test_post_key_escape_returns_200() {
         let state = make_state();
-        let resp = register_and_post_key(&state, r#"{"key":"Escape"}"#).await;
+        let resp = register_and_post_key(&state, r#"{"key":"Escape","pane_id":"w1:p1"}"#).await;
         assert_eq!(resp.status(), StatusCode::OK);
         let body = response_body(resp).await;
         assert_eq!(body["status"], "ok");
@@ -828,7 +826,7 @@ mod tests {
     #[tokio::test]
     async fn test_post_key_disallowed_returns_400() {
         let state = make_state();
-        let resp = register_and_post_key(&state, r#"{"key":"F1"}"#).await;
+        let resp = register_and_post_key(&state, r#"{"key":"F1","pane_id":"w1:p1"}"#).await;
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
         let body = response_body(resp).await;
         assert!(body["error"].as_str().unwrap().contains("not allowed"));
@@ -838,7 +836,7 @@ mod tests {
     async fn test_post_key_unauthorized_returns_403() {
         let state = make_state();
         let resp = app(state.clone())
-            .oneshot(post_request("/key", &state.session_token, r#"{"key":"Escape"}"#))
+            .oneshot(post_request("/key", &state.session_token, r#"{"key":"Escape","pane_id":"w1:p1"}"#))
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::FORBIDDEN);
@@ -847,7 +845,7 @@ mod tests {
     #[tokio::test]
     async fn test_post_key_failure_returns_500() {
         let state = make_state_with_fail_injector();
-        let resp = register_and_post_key(&state, r#"{"key":"Escape"}"#).await;
+        let resp = register_and_post_key(&state, r#"{"key":"Escape","pane_id":"w1:p1"}"#).await;
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
     }
 }

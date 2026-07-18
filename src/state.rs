@@ -6,7 +6,6 @@ use std::time::Instant;
 use crate::inject::TextInjector;
 
 pub const PORT: u16 = 9876;
-pub const INJECT_DELAY_MILLIS: u64 = 300;
 pub const MAX_TEXT_LENGTH: usize = 10_000;
 pub const RATE_LIMIT_MILLIS: u64 = 1_000;
 
@@ -96,10 +95,10 @@ mod tests {
 
     struct MockInjector;
     impl TextInjector for MockInjector {
-        fn inject(&self, _text: &str) -> Result<(), String> {
+        fn inject(&self, _pane_id: &str, _text: &str) -> Result<(), String> {
             Ok(())
         }
-        fn send_key(&self, _key: &str) -> Result<(), String> {
+        fn send_key(&self, _pane_id: &str, _key: &str) -> Result<(), String> {
             Ok(())
         }
     }

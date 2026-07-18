@@ -1,59 +1,16 @@
 use std::process::Command;
 use std::sync::Mutex;
-use std::thread;
-use std::time::Duration;
 
 const ALLOWED_KEYS: &[&str] = &["Escape", "Return", "Tab", "BackSpace", "Delete"];
 
 pub trait TextInjector: Send + Sync {
-    fn inject(&self, text: &str) -> Result<(), String>;
-    fn send_key(&self, key: &str) -> Result<(), String>;
+    fn inject(&self, pane_id: &str, text: &str) -> Result<(), String>;
+    fn send_key(&self, pane_id: &str, key: &str) -> Result<(), String>;
 }
 
-pub struct XdotoolInjector;
+pub struct HerdrInjector;
 
 static INJECT_LOCK: Mutex<()> = Mutex::new(());
-
-fn clipboard_get() -> Result<String, String> {
-    let output = Command::new("xclip")
-        .args(["-selection", "clipboard", "-o"])
-        .output()
-        .map_err(|e| format!("xclip failed: {e}"))?;
-    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
-}
-
-fn clipboard_set(text: &str) -> Result<(), String> {
-    use std::io::Write;
-    let mut child = Command::new("xclip")
-        .args(["-selection", "clipboard"])
-        .stdin(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| format!("xclip failed: {e}"))?;
-    child
-        .stdin
-        .as_mut()
-        .unwrap()
-        .write_all(text.as_bytes())
-        .map_err(|e| format!("write to xclip failed: {e}"))?;
-    child.wait().map_err(|e| format!("xclip wait failed: {e}"))?;
-    Ok(())
-}
-
-fn send_ctrl_v() -> Result<(), String> {
-    Command::new("xdotool")
-        .args(["key", "ctrl+v"])
-        .status()
-        .map_err(|e| format!("xdotool failed: {e}"))?;
-    Ok(())
-}
-
-fn send_enter() -> Result<(), String> {
-    Command::new("xdotool")
-        .args(["key", "Return"])
-        .status()
-        .map_err(|e| format!("xdotool failed: {e}"))?;
-    Ok(())
-}
 
 pub fn is_allowed_key(key: &str) -> bool {
     ALLOWED_KEYS.iter().any(|k| k.eq_ignore_ascii_case(key))
@@ -66,29 +23,44 @@ fn normalize_key(key: &str) -> Option<&'static str> {
         .copied()
 }
 
-impl TextInjector for XdotoolInjector {
-    fn inject(&self, text: &str) -> Result<(), String> {
+fn is_valid_pane_id(s: &str) -> bool {
+    !s.is_empty()
+        && !s.starts_with('-')
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == ':' || c == '_')
+}
+
+impl TextInjector for HerdrInjector {
+    fn inject(&self, pane_id: &str, text: &str) -> Result<(), String> {
+        if !is_valid_pane_id(pane_id) {
+            return Err(format!("invalid pane_id: {pane_id}"));
+        }
         let _lock = INJECT_LOCK.lock().unwrap();
-        let old = clipboard_get().unwrap_or_default();
-        let result = (|| {
-            clipboard_set(text)?;
-            thread::sleep(Duration::from_millis(50));
-            send_ctrl_v()?;
-            thread::sleep(Duration::from_millis(100));
-            send_enter()?;
-            Ok(())
-        })();
-        let _ = clipboard_set(&old);
-        result
+        let output = Command::new("herdr")
+            .args(["pane", "run", pane_id, text])
+            .output()
+            .map_err(|e| format!("herdr pane run failed: {e}"))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("herdr pane run failed: {stderr}"));
+        }
+        Ok(())
     }
 
-    fn send_key(&self, key: &str) -> Result<(), String> {
+    fn send_key(&self, pane_id: &str, key: &str) -> Result<(), String> {
+        if !is_valid_pane_id(pane_id) {
+            return Err(format!("invalid pane_id: {pane_id}"));
+        }
         let key = normalize_key(key).ok_or_else(|| format!("key not allowed: {key}"))?;
         let _lock = INJECT_LOCK.lock().unwrap();
-        Command::new("xdotool")
-            .args(["key", key])
-            .status()
-            .map_err(|e| format!("xdotool failed: {e}"))?;
+        let output = Command::new("herdr")
+            .args(["pane", "send-keys", pane_id, key])
+            .output()
+            .map_err(|e| format!("herdr pane send-keys failed: {e}"))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            return Err(format!("herdr pane send-keys failed: {stderr}"));
+        }
         Ok(())
     }
 }
@@ -96,28 +68,6 @@ impl TextInjector for XdotoolInjector {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_clipboard_get_runs_xclip() {
-        let result = clipboard_get();
-        assert!(result.is_ok() || result.is_err());
-    }
-
-    #[test]
-    fn test_clipboard_roundtrip() {
-        let original = clipboard_get().unwrap_or_default();
-        let test_text = "hab-test-multibyte";
-        clipboard_set(test_text).unwrap();
-        let got = clipboard_get().unwrap();
-        assert_eq!(got, test_text);
-        let _ = clipboard_set(&original);
-    }
-
-    #[test]
-    fn test_xdotool_injector_implements_trait() {
-        let injector: Box<dyn TextInjector> = Box::new(XdotoolInjector);
-        assert!(std::mem::size_of_val(&injector) > 0);
-    }
 
     #[test]
     fn test_is_allowed_key_escape() {
@@ -137,5 +87,26 @@ mod tests {
         assert_eq!(normalize_key("escape"), Some("Escape"));
         assert_eq!(normalize_key("RETURN"), Some("Return"));
         assert_eq!(normalize_key("unknown"), None);
+    }
+
+    #[test]
+    fn test_is_valid_pane_id() {
+        assert!(is_valid_pane_id("wD:p1"));
+        assert!(is_valid_pane_id("w9:p6"));
+        assert!(is_valid_pane_id("term_abc123"));
+    }
+
+    #[test]
+    fn test_invalid_pane_id() {
+        assert!(!is_valid_pane_id(""));
+        assert!(!is_valid_pane_id("--flag"));
+        assert!(!is_valid_pane_id("-h"));
+        assert!(!is_valid_pane_id("id;rm -rf /"));
+    }
+
+    #[test]
+    fn test_herdr_injector_implements_trait() {
+        let injector: Box<dyn TextInjector> = Box::new(HerdrInjector);
+        assert!(std::mem::size_of_val(&injector) > 0);
     }
 }

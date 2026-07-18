@@ -10,7 +10,7 @@ use std::os::unix::process::CommandExt;
 use std::process::Command;
 use std::sync::Arc;
 
-use inject::XdotoolInjector;
+use inject::HerdrInjector;
 use state::{AppState, PORT};
 
 fn get_local_ip() -> String {
@@ -93,7 +93,7 @@ fn main() {
 #[tokio::main]
 async fn cmd_serve() {
     let local_ip = get_local_ip();
-    let state = Arc::new(AppState::new(Box::new(XdotoolInjector)));
+    let state = Arc::new(AppState::new(Box::new(HerdrInjector)));
     let ui_url = format!("http://{local_ip}:{PORT}/?t={}", state.session_token);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], PORT));

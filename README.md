@@ -79,7 +79,7 @@ description = "agents bridge qr (tunnel)"
 
 ## Requirements
 
-- Linux (uses `xdotool` for input injection and `xclip` for clipboard)
+- Linux or macOS
 - Rust toolchain (built automatically by Herdr on install)
 - Herdr >= 0.7.0
 - `cloudflared` (optional, for remote access)
