@@ -161,7 +161,12 @@ function connectWs() {
   const ws = new WebSocket(proto + '//' + location.host + '/herdr/ws');
   ws.onmessage = function(e) {
     const msg = JSON.parse(e.data);
-    if (msg.type === 'agents') renderTabs(msg.agents);
+    if (msg.type === 'agents') {
+      renderTabs(msg.agents);
+      if (msg.agents.length && !msg.agents.some(a => a.focused)) {
+        focusAgent(msg.agents[0].pane_id);
+      }
+    }
     if (msg.type === 'output') renderOutput(msg.html);
   };
   ws.onclose = function() { setTimeout(connectWs, 3000); };
