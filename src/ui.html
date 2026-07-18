@@ -66,6 +66,7 @@
 </div>
 <script>
 const TOKEN = '__SESSION_TOKEN__';
+sessionStorage.setItem('hab_token', TOKEN);
 history.replaceState(null, '', '/');
 
 async function send() {

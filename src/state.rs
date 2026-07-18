@@ -54,11 +54,15 @@ impl AppState {
     }
 
     pub fn is_allowed_ip(&self, ip: &IpAddr) -> bool {
+        let allowed = self.allowed_ip.lock().unwrap();
+        allowed.as_ref() == Some(ip)
+    }
+
+    pub fn is_allowed_ip_or_loopback(&self, ip: &IpAddr) -> bool {
         if ip.is_loopback() {
             return true;
         }
-        let allowed = self.allowed_ip.lock().unwrap();
-        allowed.as_ref() == Some(ip)
+        self.is_allowed_ip(ip)
     }
 
     pub fn check_token(&self, token: &str) -> bool {
@@ -68,7 +72,7 @@ impl AppState {
 
 fn generate_token() -> String {
     use rand::Rng;
-    let bytes: [u8; 8] = rand::rng().random();
+    let bytes: [u8; 16] = rand::rng().random();
     hex_encode(&bytes)
 }
 
@@ -105,9 +109,9 @@ mod tests {
     }
 
     #[test]
-    fn test_token_is_16_hex_chars() {
+    fn test_token_is_32_hex_chars() {
         let state = make_state();
-        assert_eq!(state.session_token.len(), 16);
+        assert_eq!(state.session_token.len(), 32);
         assert!(state.session_token.chars().all(|c| c.is_ascii_hexdigit()));
     }
 

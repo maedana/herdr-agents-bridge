@@ -87,7 +87,7 @@ pub async fn get_ping(
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> impl IntoResponse {
-    if !state.is_allowed_ip(&addr.ip()) {
+    if !state.is_allowed_ip_or_loopback(&addr.ip()) {
         return error_json(StatusCode::FORBIDDEN, "forbidden").into_response();
     }
     Json(AliveResponse { status: "alive" }).into_response()
@@ -197,7 +197,7 @@ pub async fn get_herdr_agents(
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> impl IntoResponse {
-    if !state.is_allowed_ip(&addr.ip()) {
+    if !state.is_allowed_ip_or_loopback(&addr.ip()) {
         return error_json(StatusCode::FORBIDDEN, "forbidden").into_response();
     }
 
@@ -247,7 +247,7 @@ pub async fn get_herdr_read(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Query(query): Query<ReadQuery>,
 ) -> impl IntoResponse {
-    if !state.is_allowed_ip(&addr.ip()) {
+    if !state.is_allowed_ip_or_loopback(&addr.ip()) {
         return error_json(StatusCode::FORBIDDEN, "forbidden").into_response();
     }
 
@@ -281,7 +281,7 @@ pub async fn ws_herdr(
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> impl IntoResponse {
-    if !state.is_allowed_ip(&addr.ip()) {
+    if !state.is_allowed_ip_or_loopback(&addr.ip()) {
         return error_json(StatusCode::FORBIDDEN, "forbidden").into_response();
     }
     if let Some(origin) = headers.get("Origin").and_then(|v| v.to_str().ok()) {
@@ -532,6 +532,49 @@ mod tests {
             .unwrap();
         let resp = app(state.clone()).oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn test_get_root_loopback_without_token_returns_403() {
+        let state = make_state();
+        let req = Request::builder()
+            .uri("/")
+            .extension(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 0))))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app(state.clone()).oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn test_get_root_loopback_with_valid_token_returns_200() {
+        let state = make_state();
+        let req = Request::builder()
+            .uri(&format!("/?t={}", state.session_token))
+            .extension(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 0))))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app(state.clone()).oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_get_root_loopback_reload_after_registration_returns_200() {
+        let state = make_state();
+        let req = Request::builder()
+            .uri(&format!("/?t={}", state.session_token))
+            .extension(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 0))))
+            .body(Body::empty())
+            .unwrap();
+        app(state.clone()).oneshot(req).await.unwrap();
+
+        let req = Request::builder()
+            .uri("/")
+            .extension(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 0))))
+            .body(Body::empty())
+            .unwrap();
+        let resp = app(state.clone()).oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
     }
 
     // --- GET /ping ---
