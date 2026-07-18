@@ -12,12 +12,11 @@
          display: flex; flex-direction: column; }
 
   #tab-bar { display: flex; overflow-x: auto; -webkit-overflow-scrolling: touch;
-             background: #fff; border-bottom: 1px solid #d2d2d7;
-             padding: 8px 8px 0; flex-shrink: 0; }
+             padding: 0 0 8px; flex-shrink: 0; gap: 6px; }
   #tab-bar::-webkit-scrollbar { display: none; }
-  .tab { flex-shrink: 0; padding: 8px 14px; margin-right: 4px; font-size: 0.8rem;
-         background: #f0f0f5; border: 1px solid #d2d2d7; border-bottom: none;
-         border-radius: 8px 8px 0 0; cursor: pointer; max-width: 180px;
+  .tab { flex-shrink: 0; padding: 6px 12px; font-size: 0.8rem;
+         background: #f0f0f5; border: 1px solid #d2d2d7;
+         border-radius: 8px; cursor: pointer; max-width: 180px;
          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #1d1d1f; }
   .tab.focused { background: #007aff; color: #fff; border-color: #007aff; }
   .tab .tab-status { font-size: 0.65rem; opacity: 0.7; }
@@ -47,9 +46,9 @@
 </style>
 </head>
 <body>
-<div id="tab-bar"></div>
 <div id="agent-output"></div>
 <div id="bottom-bar">
+  <div id="tab-bar"></div>
   <div id="input-row">
     <textarea id="txt" autofocus placeholder="マイクボタンで話す"></textarea>
     <div id="btn-col">
