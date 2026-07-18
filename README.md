@@ -19,35 +19,54 @@ herdr plugin link herdr-agents-bridge
 
 ## Usage
 
-Open the QR code popup (starts the server automatically if needed):
+### Local network
+
+Open the QR code popup:
 
 ```sh
 herdr plugin pane open --plugin maedana.agents-bridge --entrypoint qr
 ```
 
-Scan the QR code with your phone to open the web UI.
+Scan the QR code with your phone to open the web UI. Your phone must be on the same network.
 
 ### Remote access via Cloudflare Tunnel
 
-To access from outside your local network (no port forwarding or certificates needed):
+To access from outside your local network:
 
 ```sh
-herdr plugin action invoke tunnel --plugin maedana.agents-bridge
+herdr plugin pane open --plugin maedana.agents-bridge --entrypoint qr-tunnel
 ```
 
-This starts a [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) and writes the HTTPS URL. The `qr` popup will automatically show the tunnel URL when available.
+This starts a [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/), then shows a QR code with the tunnel URL. No port forwarding or certificates needed. Requires `cloudflared` to be installed.
 
-Requires `cloudflared` to be installed.
+Opening QR (either mode) automatically starts the server (or restarts with a fresh token if already running). To stop manually: `herdr plugin action invoke stop --plugin maedana.agents-bridge`
 
-### Other commands
+### Keybinding examples
 
-```sh
-# Start the server in the background
-herdr plugin action invoke start --plugin maedana.agents-bridge
+Add to `~/.config/herdr/config.toml` for quick access:
 
-# Stop the server and tunnel
-herdr plugin action invoke stop --plugin maedana.agents-bridge
+```toml
+[[keys.command]]
+key = "prefix+q"
+type = "shell"
+command = "herdr plugin pane open --plugin maedana.agents-bridge --entrypoint qr"
+description = "agents bridge qr"
+
+[[keys.command]]
+key = "prefix+shift+q"
+type = "shell"
+command = "herdr plugin pane open --plugin maedana.agents-bridge --entrypoint qr-tunnel"
+description = "agents bridge qr (tunnel)"
 ```
+
+## Security
+
+- 128-bit session token (generated per server start, embedded in QR URL)
+- Single-device IP lock (first device to connect is locked in)
+- Token required for all endpoints that expose sensitive data
+- Read-only endpoints (agent list, terminal output) allow loopback for tunnel proxy
+- Constant-time token comparison
+- PID/URL files restricted to owner (mode 0600/0700)
 
 ## Features
 
@@ -56,7 +75,6 @@ herdr plugin action invoke stop --plugin maedana.agents-bridge
 - Text input with auto-Enter
 - Escape key sending
 - QR code popup for quick phone connection
-- Single-device authentication (first device to connect is locked in)
 - Secure remote access via Cloudflare Tunnel (optional)
 
 ## Requirements
