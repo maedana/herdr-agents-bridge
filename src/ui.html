@@ -15,11 +15,22 @@
              padding: 0 0 8px; flex-shrink: 0; gap: 6px; }
   #tab-bar::-webkit-scrollbar { display: none; }
   .tab { flex-shrink: 0; padding: 6px 12px; font-size: 0.8rem;
-         background: #f0f0f5; border: 1px solid #d2d2d7;
-         border-radius: 8px; cursor: pointer; max-width: 180px;
-         white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #1d1d1f; }
+         border: 1px solid #d2d2d7;
+         border-radius: 8px; cursor: pointer; max-width: 220px;
+         white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tab-status { font-size: 0.65rem; font-weight: 600; margin-right: 4px; }
+  .tab.s-idle { background: #f0f0f5; color: #1d1d1f; border-color: #d2d2d7; }
+  .tab.s-idle .tab-status { color: #8e8e93; }
+  .tab.s-active { background: #e8f5e9; color: #1b5e20; border-color: #66bb6a; }
+  .tab.s-active .tab-status { color: #2e7d32; }
+  .tab.s-waiting { background: #fff8e1; color: #f57f17; border-color: #ffd54f; }
+  .tab.s-waiting .tab-status { color: #e65100; }
+  .tab.s-error { background: #fbe9e7; color: #bf360c; border-color: #ef5350; }
+  .tab.s-error .tab-status { color: #c62828; }
+  .tab.s-unknown { background: #f0f0f5; color: #1d1d1f; border-color: #d2d2d7; }
+  .tab.s-unknown .tab-status { color: #8e8e93; }
   .tab.focused { background: #007aff; color: #fff; border-color: #007aff; }
-  .tab .tab-status { font-size: 0.65rem; opacity: 0.7; }
+  .tab.focused .tab-status { color: rgba(255,255,255,0.8); }
 
   #agent-output { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   #agent-output pre { background: #1e1e1e; color: #d4d4d4;
@@ -106,15 +117,24 @@ async function sendKey(key) {
   }
 }
 
+function statusClass(s) {
+  const lower = (s || '').toLowerCase();
+  if (lower === 'idle') return 's-idle';
+  if (lower === 'active' || lower === 'running') return 's-active';
+  if (lower === 'waiting' || lower === 'paused') return 's-waiting';
+  if (lower === 'error' || lower === 'crashed') return 's-error';
+  return 's-unknown';
+}
+
 function renderTabs(agents) {
   const el = document.getElementById('tab-bar');
   if (!agents.length) { el.innerHTML = ''; return; }
   el.innerHTML = agents.map(a => {
-    const cls = a.focused ? 'tab focused' : 'tab';
+    const cls = 'tab ' + statusClass(a.status) + (a.focused ? ' focused' : '');
     const repo_branch = a.repo + (a.branch ? ':' + a.branch : '');
     return '<div class="' + cls + '" onclick="focusAgent(\'' + escHtml(a.pane_id) + '\')">'
+      + '<span class="tab-status">' + escHtml(a.status) + '</span> '
       + escHtml(repo_branch)
-      + ' <span class="tab-status">' + escHtml(a.status) + '</span>'
       + '</div>';
   }).join('');
 }
