@@ -226,6 +226,7 @@ fn ensure_tunnel() {
 }
 
 fn cmd_qr(with_tunnel: bool) {
+    stop_all();
     ensure_server();
 
     if with_tunnel {
@@ -274,15 +275,12 @@ fn kill_pid(pid: u32) -> bool {
         .unwrap_or(false)
 }
 
-fn cmd_stop() {
-    let mut stopped_any = false;
-
+fn stop_all() {
     if let Some(pid) = pidfile::read_tunnel_pid() {
         if kill_pid(pid) {
             eprintln!("[herdr-agents-bridge] tunnel stopped (PID {pid})");
         }
         pidfile::cleanup_tunnel();
-        stopped_any = true;
     }
 
     if let Some(pid) = pidfile::read_pid() {
@@ -290,10 +288,14 @@ fn cmd_stop() {
             eprintln!("[herdr-agents-bridge] server stopped (PID {pid})");
         }
         pidfile::cleanup();
-        stopped_any = true;
     }
+}
 
-    if !stopped_any {
+fn cmd_stop() {
+    let had_tunnel = pidfile::read_tunnel_pid().is_some();
+    let had_server = pidfile::read_pid().is_some();
+    stop_all();
+    if !had_tunnel && !had_server {
         eprintln!("Nothing to stop.");
         std::process::exit(1);
     }
