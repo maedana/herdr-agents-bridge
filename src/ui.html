@@ -36,7 +36,7 @@
 </head>
 <body>
 <h1>🎙 VoiceBridge</h1>
-<textarea id="txt" placeholder="ここをタップ → キーボードのマイクボタンで話す"></textarea>
+<textarea id="txt" autofocus placeholder="ここをタップ → キーボードのマイクボタンで話す"></textarea>
 <button id="sendBtn" onclick="send()">PCに送信</button>
 <div class="key-row">
   <button class="key-btn" onclick="sendKey('Escape')">Esc</button>
@@ -70,6 +70,7 @@ async function send() {
       setStatus('✓ 送信しました（' + data.length + '文字）');
       addHistory(text);
       txt.value = '';
+      txt.focus();
     } else {
       setStatus('エラー: ' + JSON.stringify(data));
     }
