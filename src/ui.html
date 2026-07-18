@@ -134,7 +134,6 @@ async function focusAgent(paneId) {
     });
     const data = await res.json();
     if (data.status === 'ok') {
-      setStatus('✓ エージェント切り替え');
       const r1 = await fetch('/herdr/agents');
       if (r1.ok) renderTabs(await r1.json());
       const r2 = await fetch('/herdr/read?pane_id=' + encodeURIComponent(paneId) + '&lines=50');
