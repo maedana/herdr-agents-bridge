@@ -33,6 +33,17 @@ pub fn cleanup() {
     cleanup_in(&default_runtime_dir());
 }
 
+pub fn is_running() -> bool {
+    is_running_in(&default_runtime_dir())
+}
+
+fn is_running_in(dir: &Path) -> bool {
+    let Some(pid) = read_pid_in(dir) else {
+        return false;
+    };
+    Path::new(&format!("/proc/{pid}")).exists()
+}
+
 fn write_in(dir: &Path, pid: u32, url: &str) -> Result<(), String> {
     use std::os::unix::fs::DirBuilderExt;
     fs::DirBuilder::new()
@@ -127,6 +138,30 @@ mod tests {
         assert_eq!(url_mode, 0o600);
         let pid_mode = fs::metadata(pid_path_in(&d)).unwrap().mode() & 0o777;
         assert_eq!(pid_mode, 0o600);
+    }
+
+    #[test]
+    fn test_is_running_with_live_pid() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path().join("hab");
+        let own_pid = std::process::id();
+        write_in(&d, own_pid, "http://test").unwrap();
+        assert!(is_running_in(&d));
+    }
+
+    #[test]
+    fn test_is_running_with_dead_pid() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path().join("hab");
+        write_in(&d, 999_999_999, "http://test").unwrap();
+        assert!(!is_running_in(&d));
+    }
+
+    #[test]
+    fn test_is_running_no_pidfile() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path().join("hab");
+        assert!(!is_running_in(&d));
     }
 
     #[test]

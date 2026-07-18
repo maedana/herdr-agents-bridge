@@ -123,8 +123,27 @@ async fn cmd_serve() {
 }
 
 fn cmd_qr() {
+    if !pidfile::is_running() {
+        eprintln!("[herdr-agents-bridge] starting server...");
+        let exe = std::env::current_exe().expect("failed to get executable path");
+        Command::new(&exe)
+            .arg("serve")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("failed to start server");
+
+        for _ in 0..50 {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            if pidfile::read_url().is_some() {
+                break;
+            }
+        }
+    }
+
     let Some(url) = pidfile::read_url() else {
-        eprintln!("Server is not running. Run 'start' first.");
+        eprintln!("Failed to start server.");
         std::process::exit(1);
     };
 
