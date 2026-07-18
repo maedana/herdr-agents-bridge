@@ -27,13 +27,25 @@ herdr plugin pane open --plugin maedana.agents-bridge --entrypoint qr
 
 Scan the QR code with your phone to open the web UI.
 
-You can also start/stop the server independently:
+### Remote access via Cloudflare Tunnel
+
+To access from outside your local network (no port forwarding or certificates needed):
+
+```sh
+herdr plugin action invoke tunnel --plugin maedana.agents-bridge
+```
+
+This starts a [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) and writes the HTTPS URL. The `qr` popup will automatically show the tunnel URL when available.
+
+Requires `cloudflared` to be installed.
+
+### Other commands
 
 ```sh
 # Start the server in the background
 herdr plugin action invoke start --plugin maedana.agents-bridge
 
-# Stop the server
+# Stop the server and tunnel
 herdr plugin action invoke stop --plugin maedana.agents-bridge
 ```
 
@@ -45,12 +57,14 @@ herdr plugin action invoke stop --plugin maedana.agents-bridge
 - Escape key sending
 - QR code popup for quick phone connection
 - Single-device authentication (first device to connect is locked in)
+- Secure remote access via Cloudflare Tunnel (optional)
 
 ## Requirements
 
 - Linux (uses `xdotool` for input injection and `xclip` for clipboard)
 - Rust toolchain (built automatically by Herdr on install)
 - Herdr >= 0.7.0
+- `cloudflared` (optional, for remote access)
 
 ## License
 
