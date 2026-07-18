@@ -42,6 +42,11 @@
   .agent-repo { font-size: 0.85rem; font-weight: 600; color: #1d1d1f; }
   .agent-title { font-size: 0.8rem; color: #6e6e73; margin-top: 2px; }
   .agent-status { font-size: 0.75rem; color: #8e8e93; }
+  #agent-output { margin-top: 8px; width: 100%; max-width: 480px; }
+  #agent-output pre { background: #1e1e1e; color: #d4d4d4; border-radius: 10px;
+                      padding: 12px; font-size: 0.75rem; line-height: 1.4;
+                      overflow-x: auto; white-space: pre-wrap; word-break: break-all;
+                      max-height: 400px; overflow-y: auto; margin: 0; }
 </style>
 </head>
 <body>
@@ -57,6 +62,7 @@
 </div>
 <div id="status"></div>
 <div id="agents"></div>
+<div id="agent-output"></div>
 <div id="history"></div>
 <script>
 const TOKEN = '__SESSION_TOKEN__';
@@ -153,6 +159,19 @@ async function loadAgents() {
         + '<div class="agent-title">' + escHtml(a.title) + '</div>'
         + '</button>';
     }).join('');
+
+    const focused = agents.find(a => a.focused);
+    if (focused) loadAgentOutput(focused.pane_id);
+    else document.getElementById('agent-output').innerHTML = '';
+  } catch(e) {}
+}
+
+async function loadAgentOutput(paneId) {
+  try {
+    const res = await fetch('/herdr/read?pane_id=' + encodeURIComponent(paneId) + '&lines=50');
+    if (!res.ok) return;
+    const data = await res.json();
+    document.getElementById('agent-output').innerHTML = '<pre>' + data.html + '</pre>';
   } catch(e) {}
 }
 

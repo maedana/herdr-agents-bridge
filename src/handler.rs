@@ -44,6 +44,17 @@ pub struct FocusBody {
     pane_id: String,
 }
 
+#[derive(Deserialize)]
+pub struct ReadQuery {
+    pane_id: String,
+    #[serde(default = "default_lines")]
+    lines: u32,
+}
+
+fn default_lines() -> u32 {
+    50
+}
+
 #[derive(Serialize)]
 struct AliveResponse {
     status: &'static str,
@@ -238,6 +249,25 @@ pub async fn post_herdr_focus(
     }
 }
 
+pub async fn get_herdr_read(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Query(query): Query<ReadQuery>,
+) -> impl IntoResponse {
+    if !state.is_allowed_ip(&addr.ip()) {
+        return error_json(StatusCode::FORBIDDEN, "forbidden").into_response();
+    }
+
+    let lines = query.lines.min(200);
+    match herdr::read_agent(&query.pane_id, lines) {
+        Ok(html) => Json(serde_json::json!({"html": html})).into_response(),
+        Err(e) => {
+            error_json(StatusCode::INTERNAL_SERVER_ERROR, &format!("read failed: {e}"))
+                .into_response()
+        }
+    }
+}
+
 pub fn build_router(state: Arc<AppState>) -> axum::Router {
     use axum::routing::{get, post};
     axum::Router::new()
@@ -248,6 +278,7 @@ pub fn build_router(state: Arc<AppState>) -> axum::Router {
         .route("/key", post(post_key))
         .route("/herdr/agents", get(get_herdr_agents))
         .route("/herdr/focus", post(post_herdr_focus))
+        .route("/herdr/read", get(get_herdr_read))
         .with_state(state)
 }
 

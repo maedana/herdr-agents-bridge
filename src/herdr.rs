@@ -56,12 +56,43 @@ fn is_valid_pane_id(s: &str) -> bool {
         && s.chars().all(|c| c.is_ascii_alphanumeric() || c == ':' || c == '_')
 }
 
+pub fn read_agent(pane_id: &str, lines: u32) -> Result<String, String> {
+    if !is_valid_pane_id(pane_id) {
+        return Err(format!("invalid pane_id: {pane_id}"));
+    }
+    let output = Command::new("herdr")
+        .args([
+            "agent",
+            "read",
+            pane_id,
+            "--source",
+            "visible",
+            "--lines",
+            &lines.to_string(),
+            "--format",
+            "ansi",
+        ])
+        .output()
+        .map_err(|e| format!("herdr agent read failed: {e}"))?;
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| format!("invalid JSON: {e}"))?;
+
+    let ansi_text = json["result"]["read"]["text"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+
+    ansi_to_html::convert(&ansi_text).map_err(|e| format!("ansi conversion failed: {e}"))
+}
+
 pub fn focus_agent(pane_id: &str) -> Result<(), String> {
     if !is_valid_pane_id(pane_id) {
         return Err(format!("invalid pane_id: {pane_id}"));
     }
     Command::new("herdr")
-        .args(["agent", "focus", "--", pane_id])
+        .args(["agent", "focus", pane_id])
         .status()
         .map_err(|e| format!("herdr agent focus failed: {e}"))?;
     Ok(())
