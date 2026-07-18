@@ -32,6 +32,16 @@
                color: #1d1d1f; cursor: pointer; }
   .hist-item:active { background: #f0f0f5; }
   .hist-meta { font-size: 0.75rem; color: #8e8e93; margin-bottom: 4px; }
+  #agents { margin-top: 16px; width: 100%; max-width: 480px; }
+  #agents h2 { font-size: 0.85rem; color: #8e8e93; margin: 0 0 8px 4px; font-weight: 500; }
+  .agent-btn { display: block; width: 100%; text-align: left; background: #fff;
+               border: 1px solid #e5e5ea; border-radius: 10px;
+               padding: 10px 12px; margin-bottom: 8px; cursor: pointer; }
+  .agent-btn:active { background: #f0f0f5; }
+  .agent-btn.focused { border-color: #007aff; background: #e8f0fe; }
+  .agent-repo { font-size: 0.85rem; font-weight: 600; color: #1d1d1f; }
+  .agent-title { font-size: 0.8rem; color: #6e6e73; margin-top: 2px; }
+  .agent-status { font-size: 0.75rem; color: #8e8e93; }
 </style>
 </head>
 <body>
@@ -46,6 +56,7 @@
   <label for="enterChk">送信後にEnterを押す</label>
 </div>
 <div id="status"></div>
+<div id="agents"></div>
 <div id="history"></div>
 <script>
 const TOKEN = '__SESSION_TOKEN__';
@@ -124,6 +135,47 @@ async function sendKey(key) {
     setStatus('接続エラー: ' + e.message);
   }
 }
+
+async function loadAgents() {
+  try {
+    const res = await fetch('/herdr/agents');
+    if (!res.ok) return;
+    const agents = await res.json();
+    const el = document.getElementById('agents');
+    if (!agents.length) { el.innerHTML = ''; return; }
+    el.innerHTML = '<h2>Agents</h2>' + agents.map(a => {
+      const cls = a.focused ? 'agent-btn focused' : 'agent-btn';
+      const star = a.focused ? '★ ' : '';
+      const repo_branch = a.repo + (a.branch ? ':' + a.branch : '');
+      return '<button class="' + cls + '" onclick="focusAgent(\'' + escHtml(a.pane_id) + '\')">'
+        + '<div class="agent-repo">' + star + escHtml(repo_branch)
+        + ' <span class="agent-status">' + escHtml(a.status) + '</span></div>'
+        + '<div class="agent-title">' + escHtml(a.title) + '</div>'
+        + '</button>';
+    }).join('');
+  } catch(e) {}
+}
+
+async function focusAgent(paneId) {
+  try {
+    const res = await fetch('/herdr/focus', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-VoiceBridge-Token': TOKEN},
+      body: JSON.stringify({pane_id: paneId})
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      setStatus('✓ エージェント切り替え');
+      loadAgents();
+    } else {
+      setStatus('エラー: ' + JSON.stringify(data));
+    }
+  } catch(e) {
+    setStatus('接続エラー: ' + e.message);
+  }
+}
+
+loadAgents();
 
 function setStatus(msg) { document.getElementById('status').textContent = msg; }
 </script>

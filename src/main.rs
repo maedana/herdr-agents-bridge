@@ -1,4 +1,5 @@
 mod handler;
+mod herdr;
 mod html;
 mod inject;
 mod state;

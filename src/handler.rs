@@ -6,6 +6,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{Html, IntoResponse, Json};
 use serde::{Deserialize, Serialize};
 
+use crate::herdr;
 use crate::html;
 use crate::inject::is_allowed_key;
 use crate::state::{AppState, INJECT_DELAY_MILLIS, MAX_TEXT_LENGTH};
@@ -36,6 +37,11 @@ struct ErrorResponse {
 #[derive(Deserialize)]
 pub struct KeyBody {
     key: String,
+}
+
+#[derive(Deserialize)]
+pub struct FocusBody {
+    pane_id: String,
 }
 
 #[derive(Serialize)]
@@ -183,6 +189,55 @@ pub async fn post_key(
     Json(serde_json::json!({"status": "ok", "key": input.key})).into_response()
 }
 
+pub async fn get_herdr_agents(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+) -> impl IntoResponse {
+    if !state.is_allowed_ip(&addr.ip()) {
+        return error_json(StatusCode::FORBIDDEN, "forbidden").into_response();
+    }
+
+    match herdr::list_agents() {
+        Ok(agents) => Json(agents).into_response(),
+        Err(e) => {
+            error_json(StatusCode::INTERNAL_SERVER_ERROR, &format!("herdr error: {e}"))
+                .into_response()
+        }
+    }
+}
+
+pub async fn post_herdr_focus(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> impl IntoResponse {
+    let token = headers
+        .get("X-VoiceBridge-Token")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    if !state.is_allowed_ip(&addr.ip()) || !state.check_token(token) {
+        return error_json(StatusCode::FORBIDDEN, "forbidden").into_response();
+    }
+
+    let input: FocusBody = match serde_json::from_slice(&body) {
+        Ok(v) => v,
+        Err(e) => {
+            return error_json(StatusCode::BAD_REQUEST, &format!("invalid JSON: {e}"))
+                .into_response()
+        }
+    };
+
+    match herdr::focus_agent(&input.pane_id) {
+        Ok(()) => Json(serde_json::json!({"status": "ok"})).into_response(),
+        Err(e) => {
+            error_json(StatusCode::INTERNAL_SERVER_ERROR, &format!("focus failed: {e}"))
+                .into_response()
+        }
+    }
+}
+
 pub fn build_router(state: Arc<AppState>) -> axum::Router {
     use axum::routing::{get, post};
     axum::Router::new()
@@ -191,6 +246,8 @@ pub fn build_router(state: Arc<AppState>) -> axum::Router {
         .route("/ping", get(get_ping))
         .route("/input", post(post_input))
         .route("/key", post(post_key))
+        .route("/herdr/agents", get(get_herdr_agents))
+        .route("/herdr/focus", post(post_herdr_focus))
         .with_state(state)
 }
 
