@@ -156,10 +156,16 @@ fn cmd_qr() {
     let local_url = pidfile::read_url();
     let tunnel_url = pidfile::read_tunnel_url();
 
-    let url = tunnel_url.as_deref().or(local_url.as_deref());
-    let Some(url) = url else {
-        eprintln!("Failed to start server.");
-        std::process::exit(1);
+    let display_url = match (&tunnel_url, &local_url) {
+        (Some(tun), Some(local)) => {
+            let token = local.split("?t=").nth(1).unwrap_or("");
+            format!("{tun}/?t={token}")
+        }
+        (None, Some(local)) => local.clone(),
+        _ => {
+            eprintln!("Failed to start server.");
+            std::process::exit(1);
+        }
     };
 
     println!();
@@ -168,9 +174,9 @@ fn cmd_qr() {
     } else {
         println!("  Local network only:");
     }
-    println!("  {url}");
+    println!("  {display_url}");
     println!();
-    print_qr(&url);
+    print_qr(&display_url);
     println!();
     println!("  Press any key to close...");
 
