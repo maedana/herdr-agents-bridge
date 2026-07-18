@@ -66,7 +66,7 @@ fn print_qr(url: &str) {
                 (false, true) => "\u{2584}",
                 (false, false) => " ",
             };
-            print!("{ch}{ch}");
+            print!("{ch}");
         }
         println!();
     }
