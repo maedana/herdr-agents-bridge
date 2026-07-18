@@ -6,7 +6,7 @@ use std::time::Duration;
 const ALLOWED_KEYS: &[&str] = &["Escape", "Return", "Tab", "BackSpace", "Delete"];
 
 pub trait TextInjector: Send + Sync {
-    fn inject(&self, text: &str, enter: bool) -> Result<(), String>;
+    fn inject(&self, text: &str) -> Result<(), String>;
     fn send_key(&self, key: &str) -> Result<(), String>;
 }
 
@@ -67,7 +67,7 @@ fn normalize_key(key: &str) -> Option<&'static str> {
 }
 
 impl TextInjector for XdotoolInjector {
-    fn inject(&self, text: &str, enter: bool) -> Result<(), String> {
+    fn inject(&self, text: &str) -> Result<(), String> {
         let _lock = INJECT_LOCK.lock().unwrap();
         let old = clipboard_get().unwrap_or_default();
         let result = (|| {
@@ -75,9 +75,7 @@ impl TextInjector for XdotoolInjector {
             thread::sleep(Duration::from_millis(50));
             send_ctrl_v()?;
             thread::sleep(Duration::from_millis(100));
-            if enter {
-                send_enter()?;
-            }
+            send_enter()?;
             Ok(())
         })();
         let _ = clipboard_set(&old);

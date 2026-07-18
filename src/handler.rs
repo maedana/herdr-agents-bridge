@@ -20,8 +20,6 @@ pub struct TokenQuery {
 #[derive(Deserialize)]
 pub struct InputBody {
     text: String,
-    #[serde(default)]
-    enter: bool,
 }
 
 #[derive(Serialize)]
@@ -146,7 +144,7 @@ pub async fn post_input(
 
     tokio::time::sleep(std::time::Duration::from_millis(INJECT_DELAY_MILLIS)).await;
 
-    if let Err(e) = state.injector.inject(&input.text, input.enter) {
+    if let Err(e) = state.injector.inject(&input.text) {
         return error_json(StatusCode::INTERNAL_SERVER_ERROR, &format!("inject failed: {e}"))
             .into_response();
     }
@@ -357,7 +355,7 @@ mod tests {
 
     struct MockInjector;
     impl TextInjector for MockInjector {
-        fn inject(&self, _text: &str, _enter: bool) -> Result<(), String> {
+        fn inject(&self, _text: &str) -> Result<(), String> {
             Ok(())
         }
         fn send_key(&self, _key: &str) -> Result<(), String> {
@@ -367,7 +365,7 @@ mod tests {
 
     struct FailInjector;
     impl TextInjector for FailInjector {
-        fn inject(&self, _text: &str, _enter: bool) -> Result<(), String> {
+        fn inject(&self, _text: &str) -> Result<(), String> {
             Err("mock error".to_string())
         }
         fn send_key(&self, _key: &str) -> Result<(), String> {

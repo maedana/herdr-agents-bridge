@@ -39,9 +39,6 @@
   #sendBtn:active { background: #0051a8; }
   #escBtn { background: #e5e5ea; color: #333; }
   #escBtn:active { background: #c7c7cc; }
-  .bottom-options { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
-  .bottom-options label { font-size: 0.8rem; color: #6e6e73; }
-  .bottom-options input[type=checkbox] { width: 16px; height: 16px; }
   #status { font-size: 0.75rem; color: #6e6e73; min-height: 1em; margin-top: 4px; }
 </style>
 </head>
@@ -56,10 +53,6 @@
       <button id="escBtn" onclick="sendKey('Escape')">Esc</button>
     </div>
   </div>
-  <div class="bottom-options">
-    <input type="checkbox" id="enterChk" checked>
-    <label for="enterChk">送信後にEnter</label>
-  </div>
   <div id="status"></div>
 </div>
 <script>
@@ -70,13 +63,12 @@ async function send() {
   const txt = document.getElementById('txt');
   const text = txt.value.trim();
   if (!text) { setStatus('テキストを入力してください'); return; }
-  const enter = document.getElementById('enterChk').checked;
   setStatus('送信中...');
   try {
     const res = await fetch('/input', {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'X-HAB-Token': TOKEN},
-      body: JSON.stringify({text, enter})
+      body: JSON.stringify({text})
     });
     const data = await res.json();
     if (data.status === 'ok') {

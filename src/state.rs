@@ -89,7 +89,7 @@ mod tests {
 
     struct MockInjector;
     impl TextInjector for MockInjector {
-        fn inject(&self, _text: &str, _enter: bool) -> Result<(), String> {
+        fn inject(&self, _text: &str) -> Result<(), String> {
             Ok(())
         }
         fn send_key(&self, _key: &str) -> Result<(), String> {
