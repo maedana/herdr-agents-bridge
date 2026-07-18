@@ -143,6 +143,16 @@ fn cmd_qr() {
         }
     }
 
+    if pidfile::read_tunnel_pid().is_some() && pidfile::read_tunnel_url().is_none() {
+        eprintln!("[herdr-agents-bridge] waiting for tunnel...");
+        for _ in 0..100 {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            if pidfile::read_tunnel_url().is_some() {
+                break;
+            }
+        }
+    }
+
     let local_url = pidfile::read_url();
     let tunnel_url = pidfile::read_tunnel_url();
 
