@@ -6,6 +6,7 @@ mod pidfile;
 mod state;
 
 use std::net::{SocketAddr, UdpSocket};
+use std::os::unix::process::CommandExt;
 use std::process::Command;
 use std::sync::Arc;
 
@@ -144,6 +145,7 @@ fn cmd_qr() {
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
+            .process_group(0)
             .spawn()
             .expect("failed to start server");
 
@@ -208,6 +210,7 @@ fn cmd_tunnel() {
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
+            .process_group(0)
             .spawn()
             .expect("failed to start server");
 
@@ -240,6 +243,7 @@ fn cmd_tunnel() {
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(log_file)
+        .process_group(0)
         .spawn()
         .expect("failed to start cloudflared");
 
