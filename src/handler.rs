@@ -286,8 +286,8 @@ pub async fn ws_herdr(
     }
     if let Some(origin) = headers.get("Origin").and_then(|v| v.to_str().ok()) {
         let host = headers.get("Host").and_then(|v| v.to_str().ok()).unwrap_or("");
-        let expected = format!("http://{host}");
-        if origin != expected {
+        let allowed = [format!("http://{host}"), format!("https://{host}")];
+        if !allowed.iter().any(|a| a == origin) {
             return error_json(StatusCode::FORBIDDEN, "invalid origin").into_response();
         }
     }
