@@ -1,7 +1,6 @@
 use std::fs;
-use std::path::PathBuf;
-
-use std::path::Path;
+use std::io::Write as _;
+use std::path::{Path, PathBuf};
 
 fn default_runtime_dir() -> PathBuf {
     std::env::var("XDG_RUNTIME_DIR")
@@ -35,11 +34,28 @@ pub fn cleanup() {
 }
 
 fn write_in(dir: &Path, pid: u32, url: &str) -> Result<(), String> {
-    fs::create_dir_all(dir).map_err(|e| format!("mkdir failed: {e}"))?;
-    fs::write(pid_path_in(dir), pid.to_string())
-        .map_err(|e| format!("write pid failed: {e}"))?;
-    fs::write(url_path_in(dir), url).map_err(|e| format!("write url failed: {e}"))?;
+    use std::os::unix::fs::DirBuilderExt;
+    fs::DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(dir)
+        .map_err(|e| format!("mkdir failed: {e}"))?;
+    write_file_restricted(&pid_path_in(dir), pid.to_string().as_bytes())?;
+    write_file_restricted(&url_path_in(dir), url.as_bytes())?;
     Ok(())
+}
+
+fn write_file_restricted(path: &Path, data: &[u8]) -> Result<(), String> {
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut f = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(path)
+        .map_err(|e| format!("open {} failed: {e}", path.display()))?;
+    f.write_all(data)
+        .map_err(|e| format!("write {} failed: {e}", path.display()))
 }
 
 fn read_pid_in(dir: &Path) -> Option<u32> {
@@ -97,6 +113,20 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let d = dir.path().join("hab");
         assert_eq!(read_url_in(&d), None);
+    }
+
+    #[test]
+    fn test_file_permissions_are_restricted() {
+        use std::os::unix::fs::MetadataExt;
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path().join("hab");
+        write_in(&d, 1, "http://secret").unwrap();
+        let dir_mode = fs::metadata(&d).unwrap().mode() & 0o777;
+        assert_eq!(dir_mode, 0o700);
+        let url_mode = fs::metadata(url_path_in(&d)).unwrap().mode() & 0o777;
+        assert_eq!(url_mode, 0o600);
+        let pid_mode = fs::metadata(pid_path_in(&d)).unwrap().mode() & 0o777;
+        assert_eq!(pid_mode, 0o600);
     }
 
     #[test]
