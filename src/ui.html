@@ -155,6 +155,7 @@ async function focusAgent(paneId) {
   }
 }
 
+let initialFocusDone = false;
 function connectWs() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   const ws = new WebSocket(proto + '//' + location.host + '/herdr/ws');
@@ -162,7 +163,8 @@ function connectWs() {
     const msg = JSON.parse(e.data);
     if (msg.type === 'agents') {
       renderTabs(msg.agents);
-      if (msg.agents.length && !msg.agents.some(a => a.focused)) {
+      if (!initialFocusDone && msg.agents.length && !msg.agents.some(a => a.focused)) {
+        initialFocusDone = true;
         focusAgent(msg.agents[0].pane_id);
       }
     }
