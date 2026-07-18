@@ -48,7 +48,7 @@ fn print_qr(url: &str) {
     let code = match QrCode::new(url) {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("[WARN] QRコード生成失敗: {e}");
+            eprintln!("[WARN] QR code generation failed: {e}");
             return;
         }
     };
@@ -98,14 +98,14 @@ async fn cmd_serve() {
                         .join(", ")
                 )
             };
-            eprintln!("[ERROR] ポート {PORT} は既に使用中です{pid_str}");
+            eprintln!("[ERROR] port {PORT} is already in use{pid_str}");
             std::process::exit(1);
         }
     };
 
     let pid = std::process::id();
     if let Err(e) = pidfile::write(pid, &ui_url) {
-        eprintln!("[WARN] PID/URLファイル書き出し失敗: {e}");
+        eprintln!("[WARN] failed to write PID/URL files: {e}");
     }
 
     eprintln!("[herdr-agents-bridge] started on port {PORT} (PID {pid})");
@@ -124,17 +124,17 @@ async fn cmd_serve() {
 
 fn cmd_qr() {
     let Some(url) = pidfile::read_url() else {
-        eprintln!("サーバーが起動していません。先に start してください。");
+        eprintln!("Server is not running. Run 'start' first.");
         std::process::exit(1);
     };
 
     println!();
-    println!("  スマホでスキャンしてください:");
+    println!("  Scan with your phone:");
     println!("  {url}");
     println!();
     print_qr(&url);
     println!();
-    println!("  何かキーを押すと閉じます...");
+    println!("  Press any key to close...");
 
     use crossterm::event;
     use crossterm::terminal;
@@ -145,7 +145,7 @@ fn cmd_qr() {
 
 fn cmd_stop() {
     let Some(pid) = pidfile::read_pid() else {
-        eprintln!("PIDファイルが見つかりません。サーバーは起動していないようです。");
+        eprintln!("PID file not found. Server does not appear to be running.");
         std::process::exit(1);
     };
 
@@ -159,7 +159,7 @@ fn cmd_stop() {
             eprintln!("[herdr-agents-bridge] stopped (PID {pid})");
         }
         _ => {
-            eprintln!("[ERROR] PID {pid} の停止に失敗しました");
+            eprintln!("[ERROR] failed to stop PID {pid}");
             pidfile::cleanup();
             std::process::exit(1);
         }

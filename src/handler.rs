@@ -78,7 +78,7 @@ pub async fn get_root(
     if !state.try_register_ip(addr.ip()) {
         return error_json(StatusCode::FORBIDDEN, "already registered").into_response();
     }
-    eprintln!("[AUTH] 端末を登録しました: {}", addr.ip());
+    eprintln!("[AUTH] registered device: {}", addr.ip());
     let body = html::render(&state.session_token);
     Html(body).into_response()
 }
@@ -506,7 +506,6 @@ mod tests {
             .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
 
-        // リロード（トークンなしでも登録済みIPなら200）
         let resp = app(state.clone())
             .oneshot(get_request("/"))
             .await
@@ -526,7 +525,6 @@ mod tests {
             .await
             .unwrap();
 
-        // 別IPからのアクセスは403
         let req = Request::builder()
             .uri(&url)
             .extension(ConnectInfo(SocketAddr::from(([192, 168, 1, 99], 0))))
@@ -602,12 +600,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_post_input_japanese_returns_char_count() {
+    async fn test_post_input_multibyte_returns_char_count() {
         let state = make_state();
-        let resp = register_and_post(&state, r#"{"text":"音声テスト"}"#).await;
+        let resp = register_and_post(&state, r#"{"text":"voice test"}"#).await;
         assert_eq!(resp.status(), StatusCode::OK);
         let body = response_body(resp).await;
-        assert_eq!(body["length"], 5);
+        assert_eq!(body["length"], 10);
     }
 
     #[tokio::test]
