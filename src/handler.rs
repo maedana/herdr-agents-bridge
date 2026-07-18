@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{ConnectInfo, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{Html, IntoResponse, Json};
@@ -279,7 +280,68 @@ pub fn build_router(state: Arc<AppState>) -> axum::Router {
         .route("/herdr/agents", get(get_herdr_agents))
         .route("/herdr/focus", post(post_herdr_focus))
         .route("/herdr/read", get(get_herdr_read))
+        .route("/herdr/ws", get(ws_herdr))
         .with_state(state)
+}
+
+pub async fn ws_herdr(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    ws: WebSocketUpgrade,
+) -> impl IntoResponse {
+    if !state.is_allowed_ip(&addr.ip()) {
+        return error_json(StatusCode::FORBIDDEN, "forbidden").into_response();
+    }
+    if let Some(origin) = headers.get("Origin").and_then(|v| v.to_str().ok()) {
+        let host = headers.get("Host").and_then(|v| v.to_str().ok()).unwrap_or("");
+        let expected = format!("http://{host}");
+        if origin != expected {
+            return error_json(StatusCode::FORBIDDEN, "invalid origin").into_response();
+        }
+    }
+    ws.on_upgrade(|socket| ws_herdr_loop(socket)).into_response()
+}
+
+async fn ws_herdr_loop(mut socket: WebSocket) {
+    let mut last_agents_json = String::new();
+    let mut last_output_html = String::new();
+
+    loop {
+        let agents = herdr::list_agents().unwrap_or_default();
+        let agents_json = serde_json::to_string(&agents).unwrap_or_default();
+
+        if agents_json != last_agents_json {
+            last_agents_json = agents_json.clone();
+            let msg = serde_json::json!({"type": "agents", "agents": agents});
+            if socket.send(Message::Text(msg.to_string().into())).await.is_err() {
+                return;
+            }
+        }
+
+        let focused = agents.iter().find(|a| a.focused);
+        if let Some(agent) = focused {
+            if let Ok(html) = herdr::read_agent(&agent.pane_id, 50) {
+                if html != last_output_html {
+                    last_output_html = html.clone();
+                    let msg = serde_json::json!({"type": "output", "html": html});
+                    if socket.send(Message::Text(msg.to_string().into())).await.is_err() {
+                        return;
+                    }
+                }
+            }
+        }
+
+        tokio::select! {
+            msg = socket.recv() => {
+                match msg {
+                    Some(Ok(Message::Close(_))) | None => return,
+                    _ => {}
+                }
+            }
+            _ = tokio::time::sleep(std::time::Duration::from_secs(2)) => {}
+        }
+    }
 }
 
 #[cfg(test)]
