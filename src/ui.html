@@ -43,13 +43,15 @@
   #input-row { display: flex; gap: 8px; align-items: flex-end; }
   #input-row textarea { flex: 1; height: 60px; font-size: 1rem;
                         padding: 8px; border: 1px solid #d2d2d7; border-radius: 10px; resize: none; }
-  #btn-col { display: flex; flex-direction: column; gap: 4px; }
-  #btn-col button { padding: 8px 14px; font-size: 0.85rem; font-weight: 600;
-                    border: none; border-radius: 8px; cursor: pointer; }
-  #sendBtn { background: #007aff; color: #fff; }
+  #sendBtn { padding: 8px 14px; font-size: 0.85rem; font-weight: 600;
+             border: none; border-radius: 8px; cursor: pointer;
+             background: #007aff; color: #fff; }
   #sendBtn:active { background: #0051a8; }
-  #escBtn { background: #e5e5ea; color: #333; }
-  #escBtn:active { background: #c7c7cc; }
+  #key-row { display: flex; gap: 6px; margin-top: 6px; }
+  #key-row button { padding: 6px 14px; font-size: 0.8rem; font-weight: 600;
+                    border: none; border-radius: 8px; cursor: pointer;
+                    background: #e5e5ea; color: #333; }
+  #key-row button:active { background: #c7c7cc; }
 </style>
 </head>
 <body>
@@ -58,10 +60,11 @@
   <div id="tab-bar"></div>
   <div id="input-row">
     <textarea id="txt" autofocus placeholder="Type or use mic"></textarea>
-    <div id="btn-col">
-      <button id="sendBtn" onclick="send()">Send</button>
-      <button id="escBtn" onclick="sendKey('Escape')">Esc</button>
-    </div>
+    <button id="sendBtn" onclick="send()">Send</button>
+  </div>
+  <div id="key-row">
+    <button onclick="sendKey('Escape')">Esc</button>
+    <button onclick="sendKey('Tab')">Tab</button>
   </div>
 </div>
 <script>
