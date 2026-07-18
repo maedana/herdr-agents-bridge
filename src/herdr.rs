@@ -56,7 +56,7 @@ fn is_valid_pane_id(s: &str) -> bool {
         && s.chars().all(|c| c.is_ascii_alphanumeric() || c == ':' || c == '_')
 }
 
-pub fn read_agent(pane_id: &str, lines: u32) -> Result<String, String> {
+pub fn read_agent(pane_id: &str) -> Result<String, String> {
     if !is_valid_pane_id(pane_id) {
         return Err(format!("invalid pane_id: {pane_id}"));
     }
@@ -66,9 +66,7 @@ pub fn read_agent(pane_id: &str, lines: u32) -> Result<String, String> {
             "read",
             pane_id,
             "--source",
-            "visible",
-            "--lines",
-            &lines.to_string(),
+            "all",
             "--format",
             "ansi",
         ])

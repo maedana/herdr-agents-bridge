@@ -139,7 +139,7 @@ async function focusAgent(paneId) {
     if (data.status === 'ok') {
       const r1 = await fetch('/herdr/agents');
       if (r1.ok) renderTabs(await r1.json());
-      const r2 = await fetch('/herdr/read?pane_id=' + encodeURIComponent(paneId) + '&lines=50');
+      const r2 = await fetch('/herdr/read?pane_id=' + encodeURIComponent(paneId));
       if (r2.ok) { const d = await r2.json(); renderOutput(d.html); }
     }
   } catch(e) {}

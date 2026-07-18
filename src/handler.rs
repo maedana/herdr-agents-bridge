@@ -46,12 +46,6 @@ pub struct FocusBody {
 #[derive(Deserialize)]
 pub struct ReadQuery {
     pane_id: String,
-    #[serde(default = "default_lines")]
-    lines: u32,
-}
-
-fn default_lines() -> u32 {
-    50
 }
 
 #[derive(Serialize)]
@@ -257,8 +251,7 @@ pub async fn get_herdr_read(
         return error_json(StatusCode::FORBIDDEN, "forbidden").into_response();
     }
 
-    let lines = query.lines.min(200);
-    match herdr::read_agent(&query.pane_id, lines) {
+    match herdr::read_agent(&query.pane_id) {
         Ok(html) => Json(serde_json::json!({"html": html})).into_response(),
         Err(e) => {
             error_json(StatusCode::INTERNAL_SERVER_ERROR, &format!("read failed: {e}"))
@@ -319,7 +312,7 @@ async fn ws_herdr_loop(mut socket: WebSocket) {
 
         let focused = agents.iter().find(|a| a.focused);
         if let Some(agent) = focused {
-            if let Ok(html) = herdr::read_agent(&agent.pane_id, 50) {
+            if let Ok(html) = herdr::read_agent(&agent.pane_id) {
                 if html != last_output_html {
                     last_output_html = html.clone();
                     let msg = serde_json::json!({"type": "output", "html": html});
