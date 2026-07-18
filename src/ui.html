@@ -50,7 +50,6 @@
   #sendBtn:active { background: #0051a8; }
   #escBtn { background: #e5e5ea; color: #333; }
   #escBtn:active { background: #c7c7cc; }
-  #status { font-size: 0.75rem; color: #6e6e73; min-height: 1em; margin-top: 4px; }
 </style>
 </head>
 <body>
@@ -64,7 +63,6 @@
       <button id="escBtn" onclick="sendKey('Escape')">Esc</button>
     </div>
   </div>
-  <div id="status"></div>
 </div>
 <script>
 const TOKEN = '__SESSION_TOKEN__';
@@ -73,8 +71,7 @@ history.replaceState(null, '', '/');
 async function send() {
   const txt = document.getElementById('txt');
   const text = txt.value.trim();
-  if (!text) { setStatus('テキストを入力してください'); return; }
-  setStatus('送信中...');
+  if (!text) return;
   try {
     const res = await fetch('/input', {
       method: 'POST',
@@ -83,15 +80,10 @@ async function send() {
     });
     const data = await res.json();
     if (data.status === 'ok') {
-      setStatus('✓ 送信しました（' + data.length + '文字）');
       txt.value = '';
       txt.focus();
-    } else {
-      setStatus('エラー: ' + JSON.stringify(data));
     }
-  } catch(e) {
-    setStatus('接続エラー: ' + e.message);
-  }
+  } catch(e) {}
 }
 
 function escHtml(s) {
@@ -99,22 +91,13 @@ function escHtml(s) {
 }
 
 async function sendKey(key) {
-  setStatus(key + ' 送信中...');
   try {
-    const res = await fetch('/key', {
+    await fetch('/key', {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'X-HAB-Token': TOKEN},
       body: JSON.stringify({key})
     });
-    const data = await res.json();
-    if (data.status === 'ok') {
-      setStatus('✓ ' + key + ' を送信しました');
-    } else {
-      setStatus('エラー: ' + JSON.stringify(data));
-    }
-  } catch(e) {
-    setStatus('接続エラー: ' + e.message);
-  }
+  } catch(e) {}
 }
 
 function statusClass(s) {
@@ -158,12 +141,8 @@ async function focusAgent(paneId) {
       if (r1.ok) renderTabs(await r1.json());
       const r2 = await fetch('/herdr/read?pane_id=' + encodeURIComponent(paneId) + '&lines=50');
       if (r2.ok) { const d = await r2.json(); renderOutput(d.html); }
-    } else {
-      setStatus('エラー: ' + JSON.stringify(data));
     }
-  } catch(e) {
-    setStatus('接続エラー: ' + e.message);
-  }
+  } catch(e) {}
 }
 
 function connectWs() {
@@ -179,7 +158,6 @@ function connectWs() {
 }
 connectWs();
 
-function setStatus(msg) { document.getElementById('status').textContent = msg; }
 </script>
 </body>
 </html>
