@@ -54,6 +54,9 @@ impl AppState {
     }
 
     pub fn is_allowed_ip(&self, ip: &IpAddr) -> bool {
+        if ip.is_loopback() {
+            return true;
+        }
         let allowed = self.allowed_ip.lock().unwrap();
         allowed.as_ref() == Some(ip)
     }

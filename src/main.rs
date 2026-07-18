@@ -79,12 +79,12 @@ fn main() {
 
     match cmd {
         "serve" => cmd_serve(),
-        "qr" => cmd_qr(),
-        "tunnel" => cmd_tunnel(),
+        "qr" => cmd_qr(false),
+        "qr-tunnel" => cmd_qr(true),
         "stop" => cmd_stop(),
         other => {
             eprintln!("Unknown command: {other}");
-            eprintln!("Usage: herdr-agents-bridge [serve|qr|tunnel|stop]");
+            eprintln!("Usage: herdr-agents-bridge [serve|qr|qr-tunnel|stop]");
             std::process::exit(1);
         }
     }
@@ -136,35 +136,100 @@ async fn cmd_serve() {
     eprintln!("[herdr-agents-bridge] stopped");
 }
 
-fn cmd_qr() {
-    if !pidfile::is_running() {
-        eprintln!("[herdr-agents-bridge] starting server...");
-        let exe = std::env::current_exe().expect("failed to get executable path");
-        Command::new(&exe)
-            .arg("serve")
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .process_group(0)
-            .spawn()
-            .expect("failed to start server");
+fn ensure_server() {
+    if pidfile::is_running() {
+        return;
+    }
+    eprintln!("[herdr-agents-bridge] starting server...");
+    let exe = std::env::current_exe().expect("failed to get executable path");
+    Command::new(&exe)
+        .arg("serve")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .process_group(0)
+        .spawn()
+        .expect("failed to start server");
 
-        for _ in 0..50 {
-            std::thread::sleep(std::time::Duration::from_millis(100));
-            if pidfile::read_url().is_some() {
-                break;
+    for _ in 0..50 {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        if pidfile::read_url().is_some() {
+            break;
+        }
+    }
+}
+
+fn ensure_tunnel() {
+    if pidfile::read_tunnel_url().is_some() {
+        return;
+    }
+    eprintln!("[herdr-agents-bridge] starting tunnel...");
+
+    let log_path = std::env::var("XDG_RUNTIME_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::path::PathBuf::from("/tmp"))
+        .join("herdr-agents-bridge")
+        .join("tunnel.log");
+
+    let log_file = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&log_path)
+        .expect("failed to open tunnel log");
+
+    let child = Command::new("cloudflared")
+        .args(["tunnel", "--url", &format!("http://localhost:{PORT}")])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(log_file)
+        .process_group(0)
+        .spawn()
+        .expect("failed to start cloudflared");
+
+    let tunnel_pid = child.id();
+
+    let mut tunnel_url = None;
+    for _ in 0..100 {
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        if let Ok(log) = std::fs::read_to_string(&log_path) {
+            for line in log.lines() {
+                if let Some(pos) = line.find("https://") {
+                    let rest = &line[pos..];
+                    let end = rest
+                        .find(|c: char| c.is_whitespace() || c == '|')
+                        .unwrap_or(rest.len());
+                    let url = rest[..end].trim_end_matches('|').trim().to_string();
+                    if url.contains("trycloudflare.com") {
+                        tunnel_url = Some(url);
+                        break;
+                    }
+                }
             }
+        }
+        if tunnel_url.is_some() {
+            break;
         }
     }
 
-    if pidfile::read_tunnel_pid().is_some() && pidfile::read_tunnel_url().is_none() {
-        eprintln!("[herdr-agents-bridge] waiting for tunnel...");
-        for _ in 0..100 {
-            std::thread::sleep(std::time::Duration::from_millis(100));
-            if pidfile::read_tunnel_url().is_some() {
-                break;
-            }
-        }
+    let Some(tunnel_url) = tunnel_url else {
+        eprintln!("[ERROR] failed to get tunnel URL");
+        let _ = Command::new("kill").arg(tunnel_pid.to_string()).status();
+        std::process::exit(1);
+    };
+
+    if let Err(e) = pidfile::write_tunnel(tunnel_pid, &tunnel_url) {
+        eprintln!("[WARN] failed to write tunnel files: {e}");
+    }
+
+    eprintln!("[herdr-agents-bridge] tunnel ready: {tunnel_url}");
+}
+
+fn cmd_qr(with_tunnel: bool) {
+    ensure_server();
+
+    if with_tunnel {
+        ensure_tunnel();
     }
 
     let local_url = pidfile::read_url();
@@ -199,88 +264,6 @@ fn cmd_qr() {
     terminal::enable_raw_mode().ok();
     let _ = event::read();
     terminal::disable_raw_mode().ok();
-}
-
-fn cmd_tunnel() {
-    if !pidfile::is_running() {
-        eprintln!("[herdr-agents-bridge] starting server...");
-        let exe = std::env::current_exe().expect("failed to get executable path");
-        Command::new(&exe)
-            .arg("serve")
-            .stdin(std::process::Stdio::null())
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .process_group(0)
-            .spawn()
-            .expect("failed to start server");
-
-        for _ in 0..50 {
-            std::thread::sleep(std::time::Duration::from_millis(100));
-            if pidfile::read_url().is_some() {
-                break;
-            }
-        }
-    }
-
-    let local_url = format!("http://localhost:{PORT}");
-    eprintln!("[herdr-agents-bridge] starting tunnel...");
-
-    let log_path = std::env::var("XDG_RUNTIME_DIR")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|_| std::path::PathBuf::from("/tmp"))
-        .join("herdr-agents-bridge")
-        .join("tunnel.log");
-
-    let log_file = std::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .open(&log_path)
-        .expect("failed to open tunnel log");
-
-    let child = Command::new("cloudflared")
-        .args(["tunnel", "--url", &local_url])
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(log_file)
-        .process_group(0)
-        .spawn()
-        .expect("failed to start cloudflared");
-
-    let tunnel_pid = child.id();
-
-    let mut tunnel_url = None;
-    for _ in 0..100 {
-        std::thread::sleep(std::time::Duration::from_millis(200));
-        if let Ok(log) = std::fs::read_to_string(&log_path) {
-            for line in log.lines() {
-                if let Some(pos) = line.find("https://") {
-                    let rest = &line[pos..];
-                    let end = rest.find(|c: char| c.is_whitespace() || c == '|').unwrap_or(rest.len());
-                    let url = rest[..end].trim_end_matches('|').trim().to_string();
-                    if url.contains("trycloudflare.com") {
-                        tunnel_url = Some(url);
-                        break;
-                    }
-                }
-            }
-        }
-        if tunnel_url.is_some() {
-            break;
-        }
-    }
-
-    let Some(tunnel_url) = tunnel_url else {
-        eprintln!("[ERROR] failed to get tunnel URL");
-        let _ = Command::new("kill").arg(tunnel_pid.to_string()).status();
-        std::process::exit(1);
-    };
-
-    if let Err(e) = pidfile::write_tunnel(tunnel_pid, &tunnel_url) {
-        eprintln!("[WARN] failed to write tunnel files: {e}");
-    }
-
-    eprintln!("[herdr-agents-bridge] tunnel ready: {tunnel_url}");
 }
 
 fn kill_pid(pid: u32) -> bool {

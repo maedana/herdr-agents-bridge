@@ -391,7 +391,7 @@ mod tests {
     fn get_request(uri: &str) -> Request<Body> {
         Request::builder()
             .uri(uri)
-            .extension(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 0))))
+            .extension(ConnectInfo(SocketAddr::from(([192, 168, 1, 1], 0))))
             .body(Body::empty())
             .unwrap()
     }
@@ -402,7 +402,7 @@ mod tests {
             .uri(uri)
             .header("Content-Type", "application/json")
             .header("X-HAB-Token", token)
-            .extension(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 0))))
+            .extension(ConnectInfo(SocketAddr::from(([192, 168, 1, 1], 0))))
             .body(Body::from(body.to_string()))
             .unwrap()
     }
@@ -413,7 +413,7 @@ mod tests {
             .uri(uri)
             .header("Content-Type", "application/json")
             .header("X-HAB-Token", token)
-            .extension(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 0))))
+            .extension(ConnectInfo(SocketAddr::from(([192, 168, 1, 1], 0))))
             .body(Body::from(body.to_vec()))
             .unwrap()
     }

@@ -8,12 +8,6 @@ platforms = ["linux", "macos"]
 [[build]]
 command = ["cargo", "build", "--release"]
 
-[[actions]]
-id = "start"
-title = "Start Agents Bridge Server"
-contexts = ["global"]
-command = ["sh", "-c", "${HERDR_PLUGIN_ROOT}/target/release/herdr-agents-bridge serve &"]
-
 [[panes]]
 id = "qr"
 title = "Agents Bridge QR"
@@ -22,14 +16,16 @@ width = "50%"
 height = "60%"
 command = ["sh", "-c", "${HERDR_PLUGIN_ROOT}/target/release/herdr-agents-bridge qr"]
 
-[[actions]]
-id = "tunnel"
-title = "Start Cloudflare Tunnel"
-contexts = ["global"]
-command = ["sh", "-c", "${HERDR_PLUGIN_ROOT}/target/release/herdr-agents-bridge tunnel"]
+[[panes]]
+id = "qr-tunnel"
+title = "Agents Bridge QR (Tunnel)"
+placement = "popup"
+width = "50%"
+height = "60%"
+command = ["sh", "-c", "${HERDR_PLUGIN_ROOT}/target/release/herdr-agents-bridge qr-tunnel"]
 
 [[actions]]
 id = "stop"
-title = "Stop Agents Bridge Server"
+title = "Stop Agents Bridge"
 contexts = ["global"]
 command = ["sh", "-c", "${HERDR_PLUGIN_ROOT}/target/release/herdr-agents-bridge stop"]
