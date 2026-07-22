@@ -138,25 +138,54 @@ async fn cmd_serve() {
 
 fn ensure_server() {
     if pidfile::is_running() {
-        return;
+        if check_server_health() {
+            return;
+        }
+        eprintln!("[herdr-agents-bridge] server PID exists but not responding, restarting...");
+        stop_all();
     }
     eprintln!("[herdr-agents-bridge] starting server...");
+
+    let log_dir = std::env::var("XDG_RUNTIME_DIR")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| std::path::PathBuf::from("/tmp"))
+        .join("herdr-agents-bridge");
+    let _ = std::fs::create_dir_all(&log_dir);
+    let log_path = log_dir.join("server.log");
+    let log_file = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&log_path)
+        .expect("failed to open server log");
+
     let exe = std::env::current_exe().expect("failed to get executable path");
     Command::new(&exe)
         .arg("serve")
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
+        .stderr(log_file)
         .process_group(0)
         .spawn()
         .expect("failed to start server");
 
-    for _ in 0..50 {
+    for i in 0..50 {
         std::thread::sleep(std::time::Duration::from_millis(100));
-        if pidfile::read_url().is_some() {
-            break;
+        if pidfile::read_url().is_some() && check_server_health() {
+            return;
+        }
+        if i == 49 {
+            eprintln!("[WARN] server may not be ready (check {})", log_path.display());
         }
     }
+}
+
+fn check_server_health() -> bool {
+    std::net::TcpStream::connect_timeout(
+        &std::net::SocketAddr::from(([127, 0, 0, 1], PORT)),
+        std::time::Duration::from_millis(200),
+    )
+    .is_ok()
 }
 
 fn ensure_tunnel() {
@@ -275,9 +304,21 @@ fn kill_pid(pid: u32) -> bool {
         .unwrap_or(false)
 }
 
+fn wait_pid_exit(pid: u32, timeout_ms: u64) {
+    let proc_path = format!("/proc/{pid}");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(timeout_ms);
+    while std::time::Instant::now() < deadline {
+        if !std::path::Path::new(&proc_path).exists() {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+}
+
 fn stop_all() {
     if let Some(pid) = pidfile::read_tunnel_pid() {
         if kill_pid(pid) {
+            wait_pid_exit(pid, 3000);
             eprintln!("[herdr-agents-bridge] tunnel stopped (PID {pid})");
         }
         pidfile::cleanup_tunnel();
@@ -285,6 +326,7 @@ fn stop_all() {
 
     if let Some(pid) = pidfile::read_pid() {
         if kill_pid(pid) {
+            wait_pid_exit(pid, 3000);
             eprintln!("[herdr-agents-bridge] server stopped (PID {pid})");
         }
         pidfile::cleanup();

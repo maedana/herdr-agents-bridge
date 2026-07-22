@@ -62,7 +62,7 @@ pub fn read_agent(pane_id: &str) -> Result<String, String> {
     }
     let output = Command::new("herdr")
         .args([
-            "agent",
+            "pane",
             "read",
             pane_id,
             "--source",
@@ -73,17 +73,14 @@ pub fn read_agent(pane_id: &str) -> Result<String, String> {
             "ansi",
         ])
         .output()
-        .map_err(|e| format!("herdr agent read failed: {e}"))?;
+        .map_err(|e| format!("herdr pane read failed: {e}"))?;
 
-    let text = String::from_utf8_lossy(&output.stdout);
-    let json: serde_json::Value =
-        serde_json::from_str(&text).map_err(|e| format!("invalid JSON: {e}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("herdr pane read failed: {stderr}"));
+    }
 
-    let ansi_text = json["result"]["read"]["text"]
-        .as_str()
-        .unwrap_or("")
-        .to_string();
-
+    let ansi_text = String::from_utf8_lossy(&output.stdout);
     ansi_to_html::convert(&ansi_text).map_err(|e| format!("ansi conversion failed: {e}"))
 }
 
