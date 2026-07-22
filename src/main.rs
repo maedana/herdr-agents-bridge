@@ -82,9 +82,10 @@ fn main() {
         "qr" => cmd_qr(false),
         "qr-tunnel" => cmd_qr(true),
         "stop" => cmd_stop(),
+        "status" => cmd_status(),
         other => {
             eprintln!("Unknown command: {other}");
-            eprintln!("Usage: herdr-agents-bridge [serve|qr|qr-tunnel|stop]");
+            eprintln!("Usage: herdr-agents-bridge [serve|qr|qr-tunnel|stop|status]");
             std::process::exit(1);
         }
     }
@@ -177,6 +178,64 @@ fn ensure_server() {
         if i == 49 {
             eprintln!("[WARN] server may not be ready (check {})", log_path.display());
         }
+    }
+}
+
+fn cmd_status() {
+    let server_pid = pidfile::read_pid();
+    let server_running = server_pid.map_or(false, |pid| {
+        std::path::Path::new(&format!("/proc/{pid}")).exists()
+    });
+    let server_healthy = server_running && check_server_health();
+
+    println!("  Server:  {}", if server_healthy {
+        "running"
+    } else if server_running {
+        "running (not responding)"
+    } else {
+        "stopped"
+    });
+
+    let local_url = pidfile::read_url();
+    let tunnel_url = pidfile::read_tunnel_url();
+
+    let tunnel_pid = pidfile::read_tunnel_pid();
+    let tunnel_running = tunnel_pid.map_or(false, |pid| {
+        std::path::Path::new(&format!("/proc/{pid}")).exists()
+    });
+
+    if tunnel_url.is_some() {
+        if tunnel_running {
+            println!("  Tunnel:  running");
+        } else {
+            println!("  Tunnel:  stopped");
+        }
+    } else {
+        println!("  Tunnel:  not started");
+    }
+
+    let display_url = match (&tunnel_url, &local_url) {
+        (Some(tun), Some(local)) if tunnel_running => {
+            let token = local.split("?t=").nth(1).unwrap_or("");
+            Some(format!("{tun}/?t={token}"))
+        }
+        (_, Some(local)) => Some(local.clone()),
+        _ => None,
+    };
+
+    if let Some(url) = &display_url {
+        println!();
+        if tunnel_url.is_some() && tunnel_running {
+            println!("  Tunnel (remote):");
+        } else {
+            println!("  Local network only:");
+        }
+        println!("  {url}");
+        println!();
+        print_qr(url);
+    } else {
+        println!();
+        println!("  No URL available (server not running?)");
     }
 }
 

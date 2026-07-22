@@ -41,6 +41,14 @@ This starts a [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-o
 
 Opening QR (either mode) automatically starts the server (or restarts with a fresh token if already running). To stop manually: `herdr plugin action invoke stop --plugin maedana.agents-bridge`
 
+### Status
+
+Check the current server/tunnel status and show a QR code:
+
+```sh
+herdr plugin pane open --plugin maedana.agents-bridge --entrypoint status
+```
+
 ### Keybinding examples
 
 Add to `~/.config/herdr/config.toml` for quick access:
@@ -73,15 +81,16 @@ description = "agents bridge qr (tunnel)"
 - Real-time agent output via WebSocket
 - Agent tab switching with status indicators (idle / active / waiting / error)
 - Text input with auto-Enter
-- Escape key sending
+- Escape / Tab key sending
 - QR code popup for quick phone connection
+- Status popup showing server/tunnel state and QR code
 - Secure remote access via Cloudflare Tunnel (optional)
 
 ## Requirements
 
 - Linux or macOS
 - Rust toolchain (built automatically by Herdr on install)
-- Herdr >= 0.7.0
+- Herdr >= 0.7.5
 - `cloudflared` (optional, for remote access)
 
 ## License
